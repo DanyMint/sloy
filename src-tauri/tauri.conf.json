@@ -1,0 +1,7 @@
+{
+ "$schema":"https://schema.tauri.app/config/2",
+ "productName":"Sloy", "version":"0.1.0", "identifier":"app.sloy.journal",
+ "build":{"beforeBuildCommand":"npm run native:prepare","beforeDevCommand":"npm run native:prepare","frontendDist":"../.native-web"},
+ "app":{"withGlobalTauri":true,"windows":[{"label":"main","title":"Sloy","width":1280,"height":860,"minWidth":360,"minHeight":520}],"security":{"csp":"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; frame-src 'none'","capabilities":["main"]}},
+ "bundle":{"active":true,"targets":"all","category":"Productivity","shortDescription":"Journal and tasks for Obsidian","icon":["icons/32x32.png","icons/128x128.png","icons/128x128@2x.png","icons/icon.icns","icons/icon.ico"],"android":{"minSdkVersion":26}}
+}

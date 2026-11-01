@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Sloy
+Comment=Journal and tasks for Obsidian
+Exec=sloy
+Icon=sloy
+Type=Application
+Categories=Office;ProjectManagement;
+Terminal=false

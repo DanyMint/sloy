@@ -1,0 +1,14 @@
+node_modules/
+.native-web/
+src-tauri/target/
+src-tauri/core/target/
+src-tauri/gen/
+release/
+packaging/arch/Sloy-source.zip
+packaging/arch/src/
+packaging/arch/pkg/
+packaging/arch/*.pkg.tar.*
+*.log
+__pycache__/
+*.jks
+*.keystore

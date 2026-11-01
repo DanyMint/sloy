@@ -1,0 +1,117 @@
+/* Daily planning: weekly pool on the left, today's checklist on the right. */
+.board[data-view="day"]{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
+.board[data-view="day"] .live-panel{grid-column:1;grid-row:1}
+.board[data-view="day"] .plan-panel{grid-column:2;grid-row:1;min-height:290px}
+.board[data-view="day"] .plan-row{align-items:flex-start}
+.board[data-view="day"] .plan-row .task-check{margin-top:3px;flex-shrink:0}
+.drag-grip{font-size:18px;line-height:23px;color:var(--faint);cursor:grab;flex-shrink:0;user-select:none}
+[draggable="true"]{cursor:grab}
+.is-dragging{opacity:.4}
+.is-drop-target{outline:2px dashed var(--accent-text);outline-offset:3px;background:var(--accent-soft)!important}
+.board[data-view="day"] .live-footer{flex-wrap:wrap;gap:6px}
+/* One compact daily review with a single written reflection. */
+.reflection-section{grid-template-columns:minmax(0,.7fr) minmax(0,1.7fr);gap:25px;align-items:start}
+.day-reflection{min-width:0}
+.day-reflection>#reflection{min-height:70px;margin:0}
+.day-reflection .planner-diary{margin:14px 0 0;padding:14px 0 0;border-top:1px solid var(--line)}
+.compact-diary .diary-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:20px}
+.compact-diary .diary-card{padding:0;background:transparent;border:0;border-radius:0;min-width:0}
+.compact-review-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 10px;min-height:19px}
+.compact-review-heading h3{font-size:11px;font-weight:500;margin:0}
+.compact-review-heading>span,.compact-review-heading>strong{font-size:11px;font-weight:500;color:var(--accent-text);white-space:nowrap}
+.compact-diary .wellbeing-fieldset{margin:0;padding:0;min-width:0}
+.compact-diary .wellbeing-scale{grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}
+.compact-diary .wellbeing-scale span{height:31px;font-size:10px;border-radius:5px}
+.compact-diary .wellbeing-current{margin:8px 0 0;font-size:9px;gap:8px}
+.compact-diary .wellbeing-current .text-button{font-size:9px}
+.compact-diary .sleep-fields{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:10px}
+.compact-diary .sleep-fields>div:first-child{grid-column:auto}
+.compact-diary .form-label{font-size:9px;margin:0 0 5px}
+.compact-diary .field{font-size:10px;padding:7px 6px;min-height:34px;min-width:0}
+.compact-diary input[type="datetime-local"]{max-width:100%}
+/* Entity identity is in the header; edit belongs with the footer actions. */
+.entity-card-footer{justify-content:flex-start}
+.entity-card-footer>.entity-edit{margin:0 0 0 -4px;flex-shrink:0}
+.entity-card-footer>:last-child:not(.entity-edit){margin-left:auto}
+.entity-card-top .area-card-name{font-size:17px;margin:0;flex:1;min-width:0}
+.area-card-name button{text-align:left;padding:0;overflow-wrap:anywhere}
+.entity-list .area-card{grid-template-columns:minmax(160px,1fr) minmax(220px,1fr);grid-template-rows:auto auto;gap:10px 20px}
+.entity-list .area-card .entity-card-top{grid-column:1;grid-row:1;align-self:center}
+.entity-list .area-card .area-card-counts{grid-column:2;grid-row:1;justify-content:flex-end}
+.entity-list .area-card .entity-card-footer{grid-column:1/-1;grid-row:2}
+.repeat-settings{margin:20px 0 0;padding:13px 15px 15px;border:1px solid var(--accent-border);border-radius:9px;background:var(--accent-soft);min-width:0}
+.repeat-settings legend{font-size:12px;color:var(--accent-text);padding:0 6px}
+.repeat-settings .form-label{margin-top:0}
+.repeat-settings #repeat-custom-wrap{margin-top:13px}
+.repeat-settings .form-note{font-size:10px;margin-bottom:0}
+/* A configurable board scrolls horizontally within its own surface. */
+.collection-tools{flex-wrap:wrap}
+.collection-tools .search-wrap{flex:1;min-width:190px}
+.collection-tools>select{min-width:125px;max-width:175px;font-size:11px}
+.kanban-toolbar{display:flex;justify-content:space-between;gap:15px;align-items:center;margin:0 0 16px;font-size:11px;color:var(--secondary)}
+.kanban-toolbar .secondary-button{min-height:34px;padding:6px 12px}
+.kanban-board{display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding:3px 3px 17px;max-width:100%;scroll-snap-type:x proximity}
+.kanban-column{flex:1 0 235px;min-width:235px;background:var(--subtle);border:1px solid var(--line);border-radius:11px;padding:13px 11px;min-height:200px;scroll-snap-align:start}
+.kanban-column-heading{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:0 3px 13px}
+.kanban-column-heading h2{display:flex;gap:8px;align-items:center;font-size:12px;overflow-wrap:anywhere}
+.kanban-column-heading i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--progress);flex-shrink:0}
+.kanban-column[data-color="blue"] .kanban-column-heading i{background:var(--blue)}
+.kanban-column[data-color="green"] .kanban-column-heading i{background:var(--green)}
+.kanban-column[data-color="orange"] .kanban-column-heading i{background:var(--orange)}
+.kanban-column[data-color="neutral"] .kanban-column-heading i{background:var(--secondary)}
+.kanban-cards{display:flex;flex-direction:column;gap:10px;min-height:130px}
+.kanban-card{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:13px 12px;min-width:0;box-shadow:0 2px 3px #00000003}
+.kanban-card-title{display:flex;gap:6px;align-items:flex-start}
+.kanban-card-title .task-title{font-size:12px;line-height:1.6;min-width:0}
+.kanban-card-title .drag-grip{font-size:15px;line-height:20px}
+.kanban-card-meta{font-size:10px;color:var(--accent-text);margin:9px 0 0 19px;overflow-wrap:anywhere}
+.kanban-card-details{font-size:9px;color:var(--secondary);display:flex;gap:6px 10px;flex-wrap:wrap;margin:8px 0 0 19px}
+.kanban-card-details:empty{display:none}
+.kanban-move{display:block;margin:12px 0 0;padding-top:9px;border-top:1px solid var(--line)}
+.kanban-move select{font-size:9px;color:var(--secondary);background:var(--surface);border:0;max-width:100%;width:100%;padding:2px}
+.kanban-empty{font-size:10px;color:var(--faint);text-align:center;border:1px dashed var(--line);padding:25px 10px;border-radius:8px;min-height:100px;display:grid;place-items:center}
+.kanban-settings-columns{display:flex;flex-direction:column;gap:10px;margin:20px 0 12px}
+.kanban-settings-row{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr) auto;align-items:center;gap:7px}
+.kanban-settings-row .field{padding:8px 7px;font-size:10px;min-width:0}
+.kanban-column-actions{display:flex;gap:2px}
+.kanban-column-actions button{width:23px;height:29px;font-size:16px;border-radius:4px;color:var(--secondary)}
+.kanban-column-actions button:hover{background:var(--accent-soft)}
+.kanban-field-settings{display:flex;gap:10px 18px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;margin:19px 0 0;padding:12px 14px;font-size:11px;color:var(--secondary)}
+.kanban-field-settings legend{padding:0 5px;font-size:11px}
+.kanban-field-settings label{display:flex;align-items:center;gap:5px}
+@media(max-width:1100px){
+ .reflection-section{grid-template-columns:1fr}
+ .compact-diary .diary-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}
+}
+@media(max-width:900px){
+ .board[data-view="day"]{display:flex;flex-direction:column;gap:18px}
+ .board[data-view="day"]>.panel{width:100%}
+ .board[data-view="day"] .live-panel{order:1}
+ .board[data-view="day"] .plan-panel{order:2}
+ .compact-diary .diary-grid{grid-template-columns:1fr;gap:17px}
+}
+@media(max-width:680px){
+ .reflection-section{padding:17px;gap:20px}
+ .compact-diary .wellbeing-scale{grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}
+ .compact-diary .wellbeing-scale span{height:35px;font-size:10px}
+ .compact-diary .sleep-fields{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+ .compact-diary .field{min-height:38px;font-size:11px}
+ .entity-list .area-card{grid-template-columns:1fr;grid-template-rows:auto auto auto;gap:12px}
+ .entity-list .area-card .entity-card-top{grid-column:1;grid-row:1}
+ .entity-list .area-card .area-card-name{font-size:16px;grid-column:auto;grid-row:auto}
+ .entity-list .area-card .area-card-counts{grid-column:1;grid-row:2;justify-content:flex-start}
+ .entity-list .area-card .entity-card-footer{grid-column:1;grid-row:3}
+ .collection-tools .search-wrap{flex-basis:100%}
+ .collection-tools>select{min-width:0;width:calc(50% - 5px);max-width:none;flex:1 1 45%;font-size:10px}
+ .collection-tools>select:last-child{width:calc(50% - 5px)}
+ .collection-heading-actions .habit-view-toggle button{padding-left:8px;padding-right:8px}
+ .kanban-column{min-width:260px;flex-basis:260px}
+ .kanban-settings-row{grid-template-columns:1fr 1fr;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+ .kanban-settings-row>input{grid-column:1/-1}
+ .kanban-column-actions{grid-column:1/-1;justify-content:flex-end}
+ .kanban-column-actions button{width:35px;min-height:32px}
+ .repeat-settings{padding:12px}
+}
+
+.compact-review-heading .text-button{flex-shrink:0;white-space:nowrap;font-size:10px;font-weight:400;padding:4px 0;min-height:28px;color:var(--secondary)}
+.compact-review-heading .text-button:hover{color:var(--accent-text)}

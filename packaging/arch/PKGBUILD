@@ -1,0 +1,22 @@
+pkgname=sloy
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Journal, tasks and habits over an Obsidian Markdown vault'
+arch=('x86_64')
+license=('custom')
+depends=('webkit2gtk-4.1' 'gtk3' 'librsvg' 'openssl' 'gcc-libs')
+makedepends=('rust' 'nodejs' 'npm')
+# Put Sloy-source.zip next to this file. This recipe builds locally; it is not an AUR submission.
+source=('Sloy-source.zip')
+sha256sums=('SKIP')
+build() {
+  cd "$srcdir/Sloy-source"
+  npm ci
+  npm run native:build -- --no-bundle
+}
+package() {
+  cd "$srcdir/Sloy-source"
+  install -Dm755 src-tauri/target/release/sloy "$pkgdir/usr/bin/sloy"
+  install -Dm644 src-tauri/icons/128x128.png "$pkgdir/usr/share/icons/hicolor/128x128/apps/sloy.png"
+  install -Dm644 packaging/arch/sloy.desktop "$pkgdir/usr/share/applications/sloy.desktop"
+}

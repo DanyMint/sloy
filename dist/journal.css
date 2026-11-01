@@ -1,0 +1,93 @@
+/* Journal: intention first; results after the daily review. */
+.planner-heading .period-path{flex-wrap:wrap;gap:9px 13px}
+.planner-heading .period-path button{white-space:nowrap}
+.planner-heading .period-path button:last-child{font-size:.78em}
+.journal-focus{margin:24px 0}
+.focus-heading-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.focus-heading-actions .secondary-button{min-height:33px;padding:6px 12px}
+.focus-group{margin:0 22px 16px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.focus-group-projects{margin-left:22px;padding:0 13px 10px;border-left:1px solid var(--line)}
+.focus-entity{display:flex;align-items:center;gap:12px;padding:13px 15px;min-width:0;border-radius:7px}
+.focus-entity>div{min-width:0;flex:1}
+.focus-entity strong{font-size:12px;font-weight:500;overflow-wrap:anywhere}
+.focus-entity p{font-size:10px;line-height:1.7;color:var(--secondary);margin:4px 0 0;overflow-wrap:anywhere}
+.focus-entity>.text-button{font-size:15px;flex-shrink:0;min-width:28px;min-height:30px}
+.focus-entity.is-focused{background:var(--accent-soft)}
+.focus-select{display:grid;place-items:center;width:28px;height:28px;border:1px solid var(--line);background:var(--surface);border-radius:7px;flex-shrink:0;color:var(--secondary);font-size:17px}
+.focus-select[aria-pressed="true"]{background:var(--button-bg);color:white;border-color:var(--button-bg);font-size:13px}
+.focus-add{font-size:10px;min-height:35px;padding:8px 15px;color:var(--accent-text)}
+.unassigned-title{font-size:12px;font-weight:500;padding:15px 17px;margin:0;color:var(--secondary)}
+.focus-empty{font-size:12px;color:var(--secondary);padding:15px 22px;line-height:1.8}
+.quarter-projects{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 12px;padding:0 22px 22px}
+.fixed-focus-list{padding:0 22px 22px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 18px}
+.fixed-focus-list h3{grid-column:1/-1;font-size:11px;font-weight:500;color:var(--secondary);margin:10px 0 3px}
+.focus-fixed-mark{color:var(--accent-text);font-size:21px}
+.focus-snapshot-caption{font-size:10px;color:var(--secondary);padding:0 22px 20px}
+.board[data-view="day"]{grid-template-columns:minmax(0,1fr)}
+.board[data-view="day"] .plan-row{align-items:center;min-height:72px}
+.board[data-view="day"] .plan-row .task-check{width:23px;height:23px;font-size:14px;margin:0}
+.board[data-view="day"] .plan-row .plan-right{align-items:center}
+.board[data-view="day"] .plan-footer{margin:0}
+.board[data-view="day"] .plan-list-label{margin-top:8px}
+.board[data-view="day"] .plan-row-body .plan-task-title{font-size:13px}
+.journal-statistics{margin-top:34px;padding-top:26px;border-top:1px solid var(--line)}
+.journal-stats-heading{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:18px}
+.journal-stats-heading h2{font-size:16px;font-weight:550}
+.journal-stats-heading>span{font-size:10px;color:var(--secondary)}
+.journal-statistics .metrics{margin:0 0 18px}
+.journal-chart{padding:22px 24px}
+.journal-chart h3{font-size:12px;font-weight:500;margin:0 0 20px}
+.completion-bar{height:14px;display:flex;border-radius:7px;overflow:hidden;background:var(--line)}
+.completion-bar>span{height:100%;display:block}
+.completion-done{background:var(--green)}
+.completion-open{background:var(--button-bg)}
+.completion-cancelled{background:var(--secondary)}
+.completion-legend{display:flex;gap:22px;flex-wrap:wrap;font-size:10px;color:var(--secondary);margin-top:15px}
+.completion-legend span{display:flex;align-items:center;gap:7px}
+.completion-legend i{width:7px;height:7px;border-radius:3px;display:inline-block}
+.focus-metrics{grid-template-columns:repeat(3,1fr)}
+.focus-state{font-size:21px}
+.focus-distribution{display:grid;grid-template-columns:150px 1fr 30px;align-items:center;gap:15px;font-size:11px;margin-top:13px}
+.focus-distribution>span{overflow-wrap:anywhere}
+.focus-distribution>div{background:var(--accent-soft);height:7px;border-radius:7px;overflow:hidden}
+.focus-distribution i{display:block;background:var(--button-bg);height:100%;border-radius:7px}
+.focus-distribution b{font-size:11px;color:var(--secondary);font-weight:400;text-align:right}
+.sidebar-demo{margin-top:18px;padding:12px 7px;border:1px solid var(--line);border-radius:8px;background:var(--accent-soft);flex-shrink:0}
+.sidebar-demo-caption{display:block;font-size:9px;color:var(--secondary);padding:0 3px 6px}
+.sidebar-demo button{display:flex;align-items:center;gap:7px;padding:0 2px;font-size:9px;color:var(--accent-text);text-align:left;width:100%}
+.sidebar-demo .nav-symbol{font-size:18px;flex-shrink:0}
+.sidebar{overflow-y:auto}
+@media(min-width:681px){html[data-sidebar="compact"] .sidebar-demo{border:0;background:transparent;padding:0;margin:12px auto 5px}html[data-sidebar="compact"] .sidebar-demo-caption{display:none}html[data-sidebar="compact"] .sidebar-demo button{width:40px;height:35px;justify-content:center}html[data-sidebar="compact"] .sidebar-demo .nav-text{display:none}}
+@media(max-height:820px) and (min-width:681px){.sidebar-note{display:none}.sidebar-divider{margin-top:16px;margin-bottom:16px}.sidebar-demo{margin-top:12px}.sidebar-head+.nav-label{margin-top:22px}}
+@media(max-width:680px){
+ .planner-heading .period-path{font-size:22px;gap:7px 9px}
+ .planner-heading .period-path button{font-size:inherit}
+ .planner-heading .period-path button:last-child{font-size:.78em}
+ .journal-focus{margin:20px 0}
+ .journal-focus .panel-header{align-items:flex-start;flex-wrap:wrap}
+ .focus-heading-actions{gap:10px}
+ .focus-group{margin:0 15px 13px}
+ .focus-group-projects{margin-left:17px;padding-right:7px}
+ .focus-entity{padding:12px 10px;gap:10px}
+ .focus-entity strong{font-size:12px}
+ .focus-select{width:30px;height:30px}
+ .quarter-projects,.fixed-focus-list{grid-template-columns:1fr;padding:0 15px 15px}
+ .board[data-view="day"] .plan-right{flex-wrap:wrap;max-width:110px;justify-content:flex-end}
+ .journal-statistics{margin-top:26px;padding-top:22px}
+ .journal-stats-heading{align-items:flex-start;flex-direction:column;gap:5px}
+ .journal-stats-heading h2{font-size:14px}
+ .journal-statistics .focus-metrics{grid-template-columns:1fr}
+ .focus-metrics .metric{border-right:0;border-bottom:1px solid var(--line);padding:13px 18px}
+ .focus-metrics .metric:last-child{border:0}
+ .journal-statistics .focus-metrics{padding:0}
+ .journal-chart{padding:20px 18px}
+ .completion-legend{gap:12px 18px}
+ .focus-distribution{grid-template-columns:90px 1fr 20px;gap:10px;font-size:10px}
+ .sidebar-demo{margin:0 0 12px;padding:8px 10px;display:flex;justify-content:space-between;gap:15px;align-items:center}
+ .sidebar-demo-caption{padding:0;white-space:nowrap}
+ .sidebar-demo button{width:auto}
+}
+
+.board[data-view="day"] .empty-state{padding:22px 25px}
+.board[data-view="day"] .empty-state .empty-symbol{display:none}
+.board[data-view="day"] .plan-task-title[data-action]{text-align:left;padding:0;display:block;background:none}

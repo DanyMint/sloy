@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a commit from main
+        run: git merge-base --is-ancestor HEAD origin/main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/check-release-version.mjs
+
+  build:
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+    with:
+      release: true
+    secrets:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+  draft:
+    name: Create draft release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Sloy-*
+          path: release
+          merge-multiple: true
+      - name: Verify packages and write checksums
+        run: |
+          python3 - <<'PY'
+          import hashlib, pathlib
+          root = pathlib.Path('release')
+          files = sorted(root.iterdir())
+          for suffix in ('.exe', '.pkg.tar.zst', '.apk'):
+              if sum(p.name.endswith(suffix) for p in files) != 1:
+                  raise SystemExit(f'Expected exactly one {suffix} package')
+          if len(files) != 3:
+              raise SystemExit('Unexpected release files')
+          with (root / 'SHA256SUMS').open('w') as output:
+              for path in files:
+                  output.write(f'{hashlib.file_digest(path.open("rb"), "sha256").hexdigest()}  {path.name}\n')
+          PY
+      - name: Create or update draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" --json isDraft > "$RUNNER_TEMP/sloy-release.json"; then
+            python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))["isDraft"] else "Refusing to overwrite a published release")' "$RUNNER_TEMP/sloy-release.json"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "Sloy $RELEASE_TAG" --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" release/* --clobber

@@ -1,0 +1,229 @@
+.mobile-nav{display:none}
+.mobile-menu{position:fixed;inset:0 0 0 auto;margin:0;width:min(84vw,330px);max-width:none;height:100vh;height:100dvh;max-height:100%;padding:22px 20px calc(22px + env(safe-area-inset-bottom));border:0;border-left:1px solid var(--line);border-radius:16px 0 0 16px;background:var(--surface);color:var(--text);box-shadow:-20px 0 60px #00000024;overflow-y:auto;overscroll-behavior:contain}
+.mobile-menu[open]{display:flex;flex-direction:column;animation:mobile-menu-in .18s ease-out}
+.mobile-menu::backdrop{background:#0007;backdrop-filter:none}
+.mobile-menu-heading{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:22px}
+.mobile-menu-heading h2{font-size:22px;font-weight:550;margin:0}
+.mobile-menu-heading .icon-button{width:44px;height:44px;font-size:23px}
+.mobile-menu-links{display:grid;gap:6px}
+.mobile-menu-link{width:100%;display:flex;align-items:center;gap:14px;padding:14px 12px;min-height:52px;font-size:14px;text-align:left;border-radius:9px;color:var(--text)}
+.mobile-menu-link svg{width:22px;height:22px;flex-shrink:0;color:var(--secondary)}
+.mobile-menu-link:hover,.mobile-menu-link.active{background:var(--accent-soft);color:var(--accent-text)}
+.mobile-menu-link.active svg{color:var(--accent-text)}
+.mobile-menu-settings{margin-top:auto;padding-top:30px}
+#mobile-status-slot .saved{display:flex;margin-top:18px;font-size:10px}
+html[data-mobile-menu-open],html[data-mobile-menu-open] body{overflow:hidden}
+@keyframes mobile-menu-in{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){.mobile-menu[open]{animation:none}}
+
+.zones-heading{margin-bottom:25px}
+.zones-heading h1{font-size:30px}
+.zones-tree{max-width:850px}
+.zones-tree .space-tree-row{min-height:49px;gap:4px}
+.zones-tree .space-tree-toggle,.zones-tree .space-tree-spacer{width:40px;min-width:40px;height:44px}
+.zones-tree .space-tree-title{font-size:15px;min-height:48px;padding:10px 9px 10px 0;gap:12px}
+.zones-tree .space-tree-symbol,.zones-tree .entity-icon{width:21px;height:21px}
+.zones-tree .space-tree-item ul{margin-left:20px;padding-left:12px}
+.zones-tree .space-tree-item .space-tree-item .space-tree-title{font-size:14px}
+.zones-tree .tree-create{gap:12px;flex-wrap:wrap;margin-top:25px;padding:0}
+.zones-tree .tree-create .text-button{font-size:12px;padding:10px 14px;border:1px solid var(--line);border-radius:8px;min-height:44px}
+
+@media(max-width:680px){
+ :root{--mobile-bar-height:68px}
+ #sidebar{display:none!important}
+ html[data-sidebar] .app-shell{margin-left:0}
+ main{padding:25px 18px calc(var(--mobile-bar-height) + env(safe-area-inset-bottom) + 28px)}
+ .mobile-nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;height:calc(var(--mobile-bar-height) + env(safe-area-inset-bottom));padding:6px max(10px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -5px 22px #00000008}
+ .mobile-nav-button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-width:0;min-height:52px;border-radius:9px;padding:5px 2px;font-size:10px;line-height:1.2;color:var(--secondary);-webkit-tap-highlight-color:transparent}
+ .mobile-nav-button svg{display:block;width:22px;height:22px;flex-shrink:0}
+ .mobile-nav-button.active{background:var(--accent-soft);color:var(--accent-text)}
+ .mobile-nav-button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+ .toast{bottom:calc(var(--mobile-bar-height) + env(safe-area-inset-bottom) + 14px)}
+ .zones-heading{margin-bottom:21px}
+ .zones-heading h1{font-size:27px}
+ .zones-tree .space-tree-item ul{margin-left:20px;padding-left:8px}
+ .zones-tree .space-tree-title{overflow-wrap:anywhere}
+}
+
+.period-label-short{display:none}
+@media(max-width:680px){
+ #period-path{flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:4px;font-size:20px;line-height:1.25;letter-spacing:-.4px;white-space:nowrap;max-width:100%;overflow-x:auto}
+ #period-path button{flex:0 0 auto;font-size:inherit;line-height:inherit;min-height:44px;padding:4px 2px;text-transform:none}
+ #period-path>span{flex-shrink:0;font-size:15px}
+ #period-path .period-label-full{display:none}
+ #period-path .period-label-short{display:inline}
+ .planner-heading{margin-bottom:16px}
+}
+@media(max-width:400px){
+ #planner-view .plan-panel .panel-header{flex-wrap:wrap;align-items:flex-start;gap:10px}
+ #planner-view .plan-panel .panel-heading{min-width:0;flex:1 1 170px}
+ .capacity-row{flex-wrap:wrap;gap:10px}
+ .compact-diary .wellbeing-scale{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+ .compact-diary .wellbeing-scale span{height:44px;font-size:13px}
+ .compact-diary .sleep-fields{grid-template-columns:minmax(0,1fr);gap:13px}
+ .compact-diary .field{min-height:44px;font-size:14px;padding:10px}
+ #modal .field{min-height:44px;font-size:14px}
+ .sleep-fields>div{min-width:0}
+ .scope-actions .primary-button,.scope-actions .secondary-button{min-height:44px}
+}
+
+/* Preferences stay on their own page at every screen width. */
+.sidebar-system .system-settings-button{justify-content:flex-start;gap:9px;width:100%;height:38px;margin:0 0 6px;padding:0 8px;font-size:10px}
+@media(min-width:681px){html[data-sidebar="compact"] #sidebar .system-settings-button{width:44px;justify-content:center;padding:0}}
+
+/* Approved graffiti wordmark; the compact rail uses its matching S mark. */
+.sidebar-head .brand{display:flex;justify-content:center;padding:0;gap:0}
+.sidebar-head .brand .brand-wordmark{display:block;width:168px;max-width:100%;height:auto;stroke:none;flex-shrink:0}
+.sidebar-head .brand-letter{display:none}
+@media(min-width:681px){
+ html[data-sidebar="compact"] #sidebar .brand-wordmark{display:none}
+ html[data-sidebar="compact"] #sidebar .brand-letter{display:block;width:40px;height:40px}
+}
+
+.vault-path-row{display:flex;align-items:stretch;gap:8px}
+.vault-path-row .field{flex:1;min-width:0;width:0}
+.vault-path-row .secondary-button{flex:0 0 auto;min-height:44px;padding:10px 15px;white-space:nowrap}
+.vault-picker-status:empty{display:none}
+.habit-row-symbol .entity-icon{display:block;width:22px;height:22px;color:inherit}
+.habit-symbol .entity-icon{width:23px;height:23px;color:inherit}
+.today-habit-name{display:flex;align-items:center;gap:7px}
+.today-habit-name .entity-icon{width:17px;height:17px;flex-shrink:0;color:inherit}
+@media(max-width:680px){.entity-icon-picker>div{grid-template-columns:repeat(auto-fill,minmax(44px,1fr))}.entity-icon-picker label{min-height:44px}}
+
+/* Keep vertical scrolling and pinch zoom native while a row handles right swipes. */
+[data-swipe-task]{touch-action:pan-y pinch-zoom}
+[data-swipe-task].is-swiping{position:relative;overflow:hidden;isolation:isolate;background:var(--surface)}
+[data-swipe-task].is-swiping>*{transform:translateX(var(--task-swipe-x,0px));pointer-events:none}
+[data-swipe-task].is-swiping::before{content:'✓';position:absolute;inset:0 auto 0 0;width:var(--task-swipe-x,0px);display:flex;align-items:center;justify-content:center;background:var(--green-soft,#dcefe5);color:var(--green,#28754e);font-size:22px;font-weight:600}
+[data-swipe-task].swipe-ready::before{content:'✓ Готово';background:#23834f;color:#fff;font-size:12px;white-space:nowrap}
+
+/* A stable planning workspace: lists scroll, headings and actions stay visible. */
+#planner-view .board,#planner-view .quarter-board{--planning-height:clamp(560px,calc(100dvh - 120px),720px);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;align-items:stretch;height:var(--planning-height)}
+#planner-view .board>.live-panel{order:1}
+#planner-view .board>.plan-panel{order:2}
+#planner-view .board.is-fixed-day{grid-template-columns:minmax(0,1fr)}
+#planner-view .board>.panel,.quarter-board>.panel{height:100%;min-height:0;display:flex;flex-direction:column;grid-column:auto;grid-row:auto}
+#plan-content{display:flex;flex-direction:column;min-height:0;height:100%}
+#plan-content>.panel-header,#plan-content>.focus-block,#plan-content>.plan-list-label,#plan-content>.plan-footer,.live-panel>.panel-header,.live-panel>.task-tools,.live-panel>.live-footer,.quarter-board .panel-header,.quarter-board .focus-block,.quarter-board .plan-footer{flex-shrink:0}
+#plan-content>.focus-block textarea,.quarter-plan-panel .focus-block textarea{max-height:86px}
+#planner-view .plan-task-list,#planner-view .live-panel #task-list,.quarter-catalog-scroll,.quarter-focus-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable;overscroll-behavior-y:contain}
+#planner-view .plan-task-list:focus-visible,.quarter-catalog-scroll:focus-visible,.quarter-focus-scroll:focus-visible{outline:2px solid var(--accent-border);outline-offset:-2px}
+.quarter-board{margin-top:24px}
+.quarter-catalog-panel>.panel-header .text-button{font-size:10px;white-space:nowrap}
+.quarter-branch{margin:0 20px 15px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.quarter-parent{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 4px}
+.quarter-parent>div{min-width:0}
+.quarter-parent strong{font-size:12px;font-weight:550;overflow-wrap:anywhere}
+.quarter-parent small{font-size:10px;color:var(--secondary);margin:5px 0}
+.quarter-children{margin-left:16px;padding-left:12px;border-left:1px solid var(--line)}
+.quarter-children .focus-entity{padding:10px 4px}
+.quarter-child-context{font-size:11px;color:var(--secondary);display:flex;align-items:center;gap:8px;padding:9px 4px}
+.quarter-focus-scroll{padding:0 18px 14px}
+.quarter-focus-scroll .focus-entity{margin-bottom:8px}
+.quarter-focus-scroll .focus-fixed-mark{display:none}
+.quarter-focus-warning{font-size:11px;line-height:1.7;color:var(--accent-text);padding:0 10px}
+@media(max-width:900px){
+ #planner-view .board,#planner-view .quarter-board{height:auto;grid-template-columns:minmax(0,1fr);gap:18px}
+ #planner-view .board>.panel,.quarter-board>.panel{height:clamp(480px,75dvh,640px);width:100%}
+ .quarter-board .panel-header{flex-wrap:wrap;gap:12px}
+ .quarter-branch{margin-left:16px;margin-right:16px}
+ .quarter-focus-scroll{padding-left:12px;padding-right:12px}
+}
+
+/* Quarterly goals stay beside the weekly task plan, inside the existing scroll area. */
+#planner-view[data-view="week"] #task-list{padding:0 18px 12px}
+.weekly-focus-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 0 12px}
+.weekly-focus-heading h3{font-size:12px;font-weight:600;margin:0 0 5px}
+.weekly-focus-heading span,.weekly-project-context,.weekly-empty,.weekly-outside-caption{font-size:11px;line-height:1.6;color:var(--secondary)}
+.weekly-focus-heading .text-button{font-size:10px;white-space:nowrap}
+.weekly-focus-notice{font-size:12px;line-height:1.7;color:var(--secondary);padding:12px 0 20px;margin:0}
+.weekly-project-title{display:inline-flex;align-items:center;gap:8px;vertical-align:middle;max-width:calc(100% - 42px);overflow-wrap:anywhere}
+.weekly-project-title svg{width:18px;height:18px;flex-shrink:0}
+#task-list details.flow-section{margin-bottom:12px}
+#task-list details.flow-section>.flow-section-body{padding-left:12px}
+.weekly-project-context{display:flex;justify-content:space-between;align-items:start;gap:10px}
+.weekly-project-context>span{min-width:0;overflow-wrap:anywhere}
+.weekly-project-context .text-button{font-size:10px;white-space:nowrap}
+.weekly-project-actions{display:flex;gap:14px;flex-wrap:wrap;padding:5px 0}
+.weekly-project-actions .text-button{font-size:11px;min-height:32px}
+#task-list .weekly-project .task-row,#task-list .weekly-outside .task-row{padding:12px 0}
+#task-list .weekly-outside{border-top:1px solid var(--line);padding-top:12px;margin-top:20px}
+.weekly-outside-caption{margin:0 0 8px}
+.weekly-empty{padding:8px 0;margin:0}
+.year-area-heading{font-size:13px;font-weight:550;margin:0 0 8px;color:var(--secondary)}
+.focus-project-path{display:block;margin-top:5px;font-size:10px;color:var(--secondary);line-height:1.5}
+.tree-project-done{font-size:11px;color:var(--green);margin-left:7px}
+.task-status.someday{color:var(--secondary);background:var(--surface-alt)}
+.kanban-someday{margin-top:22px!important}
+@media(max-width:680px){
+ #planner-view[data-view="week"] #task-list{padding-left:12px;padding-right:12px}
+ .weekly-focus-heading .text-button,.weekly-project-context .text-button,.weekly-project-actions .text-button{min-height:44px}
+ .weekly-focus-heading{align-items:start}
+ .weekly-project-context{flex-wrap:wrap;gap:0 10px}
+ .weekly-project-actions{gap:0 12px}
+ #task-list details.flow-section>.flow-section-body{padding-left:8px}
+}
+
+.task-filter-menu{position:relative;flex-shrink:0}
+.task-filter-menu>summary{display:none;list-style:none}
+.task-filter-menu>summary::-webkit-details-marker,.weekly-project-menu>summary::-webkit-details-marker{display:none}
+.weekly-filter-label{display:none}
+#planner-view[data-view="week"] .live-panel .panel-header .count{display:none}
+#planner-view[data-view="week"] .task-tools{flex-wrap:nowrap;gap:10px}
+#planner-view[data-view="week"] .task-tools .search-wrap{flex:1;min-width:0}
+#planner-view[data-view="week"] .task-filter-menu>summary{display:flex;align-items:center;justify-content:center;width:36px;height:36px;padding:8px;border:1px solid var(--line);border-radius:8px;box-sizing:border-box;cursor:pointer;background:var(--field)}
+#planner-view[data-view="week"] .task-filter-menu>summary svg{width:20px;height:20px}
+#planner-view[data-view="week"] .task-filter-menu.has-filter>summary{border-color:var(--focus);color:var(--accent-text);background:var(--accent-soft)}
+#planner-view[data-view="week"] .task-filter-popover{position:absolute;right:0;top:43px;z-index:30;padding:14px;width:200px;border:1px solid var(--line);border-radius:9px;background:var(--surface);box-shadow:0 10px 30px #0002}
+#planner-view[data-view="week"] .weekly-filter-label{display:block;font-size:11px;color:var(--secondary);margin-bottom:9px}
+#planner-view[data-view="week"] .task-filter-popover select{max-width:none;width:100%;font-size:12px;min-height:40px}
+#planner-view[data-view="week"] .weekly-focus-heading{padding:8px 0 12px}
+#planner-view[data-view="week"] .weekly-quarter-link{font-size:11px;min-height:32px;text-align:left}
+.weekly-group-shell{position:relative;min-width:0}
+#task-list .weekly-group-shell>details.flow-section{margin:0 0 7px}
+#task-list .weekly-group-shell>details.flow-section>summary{padding:11px 88px 11px 0;min-height:42px;box-sizing:border-box;font-size:12px;line-height:1.6}
+#task-list .weekly-group-shell>details.flow-section[open]>summary{margin-bottom:0}
+#task-list .weekly-group-shell>.weekly-group-actions{position:absolute;top:0;right:0;display:flex;align-items:center;gap:5px;height:42px}
+.weekly-group-actions>.icon-button,.weekly-project-menu>summary{height:30px;width:30px;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid var(--line);border-radius:7px;box-sizing:border-box;cursor:pointer;background:transparent;color:var(--text);padding:0}
+.weekly-project-menu{position:relative}
+.weekly-project-menu>summary{list-style:none;user-select:none}
+.weekly-menu-popover{position:absolute;z-index:25;right:0;top:36px;width:235px;max-width:65vw;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);box-shadow:0 8px 26px #0002;box-sizing:border-box}
+.weekly-menu-popover p{font-size:11px;color:var(--secondary);line-height:1.6;margin:0 0 7px;overflow-wrap:anywhere}
+.weekly-menu-popover button{display:block;width:100%;text-align:left;padding:8px 0;font-size:11px;min-height:34px}
+.weekly-menu-popover>span{font-size:11px;color:var(--secondary)}
+#task-list .weekly-project-title{max-width:calc(100% - 32px);gap:7px;font-size:12px}
+#task-list .weekly-project-title svg{width:17px;height:17px}
+#task-list .weekly-empty{font-size:11px;padding:8px 0 12px}
+.weekly-empty .text-button{font-size:inherit}
+#task-list .weekly-outside-shell{border-top:1px solid var(--line);padding-top:7px;margin-top:9px}
+#task-list .weekly-outside-shell>.weekly-group-actions{top:7px}
+#task-list details.weekly-outside{border:0;padding:0;margin:0}
+#task-list .weekly-project .weekly-task-row,#task-list .weekly-outside .weekly-task-row,#task-list .weekly-task-row{display:flex;align-items:center;gap:10px;padding:11px 0;min-height:49px;box-sizing:border-box}
+#task-list .weekly-task-row[draggable="true"]{cursor:grab}
+#task-list .weekly-task-row .task-body{min-width:0;flex:1}
+#task-list .weekly-task-row .task-title{font-size:12px;line-height:1.55;text-align:left;white-space:normal;overflow-wrap:anywhere}
+#task-list .weekly-task-row .task-meta{font-size:10px;line-height:1.6;gap:5px;flex-wrap:wrap;margin-top:3px}
+.weekly-task-estimate{font-size:10px;white-space:nowrap;color:var(--secondary);flex-shrink:0}
+#task-list .weekly-task-row .select-task{width:28px;height:28px;flex-shrink:0;font-size:15px}
+.weekly-task-project{font-size:inherit;color:var(--secondary);text-align:left;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0}
+.weekly-task-project:hover{color:var(--accent-text)}
+.weekly-outside-tag{color:var(--faint)}
+.weekly-source-tabs{display:flex;align-items:stretch;padding:3px;border:1px solid var(--line);border-radius:8px;margin:4px 0 6px;background:var(--field)}
+.weekly-source-tabs button{flex:1;min-width:0;padding:8px 6px;min-height:34px;font-size:10px;color:var(--secondary);border-radius:5px;white-space:nowrap}
+.weekly-source-tabs button[aria-pressed="true"]{color:var(--accent-text);background:var(--accent-soft)}
+.weekly-flat-list .weekly-task-row:first-child{border-top:0}
+#planner-view[data-view="week"] .live-footer{justify-content:flex-start}
+@media(max-width:680px){
+ #planner-view[data-view="week"] .task-filter-menu>summary{width:44px;height:44px}
+ #planner-view[data-view="week"] .task-tools .search-wrap{min-height:44px}
+ #planner-view[data-view="week"] .task-filter-popover{top:48px;width:210px}
+ #planner-view[data-view="week"] .weekly-quarter-link{min-height:40px}
+ #task-list .weekly-group-shell>details.flow-section>summary{min-height:48px;padding-right:100px;padding-top:13px}
+ #task-list .weekly-group-shell>.weekly-group-actions{height:48px;gap:2px}
+ .weekly-group-actions>.icon-button,.weekly-project-menu>summary{width:44px;height:44px;border-color:transparent}
+ .weekly-menu-popover{top:46px;max-width:64vw}
+ .weekly-menu-popover button{min-height:44px}
+ #task-list .weekly-task-row .select-task{width:44px;height:44px}
+ #task-list .weekly-project .weekly-task-row,#task-list .weekly-outside .weekly-task-row,#task-list .weekly-task-row{gap:6px;min-height:57px;padding:6px 0}
+ .weekly-source-tabs button{min-height:40px;padding:8px 3px;font-size:10px}
+}

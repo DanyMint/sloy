@@ -87,7 +87,7 @@ jobs:
         run: pacman -Syu --noconfirm --needed git rust nodejs npm webkit2gtk-4.1 gtk3 librsvg openssl
       - uses: actions/checkout@v4
       - name: Prepare source archive
-        run: git archive --format=zip --prefix=Sloy-source/ --output=packaging/arch/Sloy-source.zip HEAD
+        run: git -c safe.directory="$GITHUB_WORKSPACE" archive --format=zip --prefix=Sloy-source/ --output=packaging/arch/Sloy-source.zip HEAD
       - name: Build package as an unprivileged user
         run: |
           useradd --create-home builder
@@ -116,6 +116,9 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android

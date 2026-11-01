@@ -6,6 +6,9 @@ arch=('x86_64')
 license=('custom')
 depends=('webkit2gtk-4.1' 'gtk3' 'librsvg' 'openssl' 'gcc-libs')
 makedepends=('rust' 'nodejs' 'npm')
+# GCC LTO objects from bundled ring/SQLite cannot be linked by Rust's lld.
+# Ship one installable package rather than a separate debug package.
+options=('!lto' '!debug')
 # Put Sloy-source.zip next to this file. This recipe builds locally; it is not an AUR submission.
 source=('Sloy-source.zip')
 sha256sums=('SKIP')

@@ -196,7 +196,11 @@ jobs:
         with:
           version: 2026.11.2
       - name: Scan pull request history for secrets
-        run: betterleaks git . --revision="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" --redact
+        run: >-
+          betterleaks git . --log-opts="--full-history --diff-filter=tuxdb --diff-merges=first-parent
+          --format=medium --no-abbrev-commit --no-ext-diff --no-textconv --no-color
+          --src-prefix=a/ --dst-prefix=b/
+          ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" --redact
 
   ci-passed:
     name: CI passed

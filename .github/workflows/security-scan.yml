@@ -21,7 +21,7 @@ jobs:
         with:
           version: 2026.11.2
       - name: Scan repository history for secrets
-        run: betterleaks git . --redact
+        run: betterleaks git . --log-opts="--full-history --all --diff-filter=tuxdb --diff-merges=first-parent" --redact
       - name: Scan lockfiles for known vulnerabilities
         run: >-
           osv-scanner scan source

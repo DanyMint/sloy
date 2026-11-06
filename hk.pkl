@@ -11,7 +11,7 @@ steps {
   }
   ["betterleaks-staged"] {
     glob = List("**")
-    check = "git diff --cached --no-ext-diff --no-textconv --no-color --src-prefix=a/ --dst-prefix=b/ | betterleaks stdin --git-diff --redact"
+    check = "betterleaks git . --pre-commit --staged --redact"
   }
   ["oxfmt-json"] {
     glob = List("package.json", "src-tauri/tauri.conf.json")
@@ -23,7 +23,7 @@ steps {
   }
   ["cargo-machete"] {
     glob = List("src-tauri/**/*.toml")
-    check = "cargo machete src-tauri"
+    check = "mise exec -- cargo-machete src-tauri"
   }
   ["jactionlint"] {
     glob = List(".github/**/*.yml")

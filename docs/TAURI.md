@@ -23,6 +23,8 @@ Android: JDK 21, Android SDK 36, NDK r28c, Rust target `aarch64-linux-android`. 
 
 Android-проект генерируется и не хранится в репозитории. Доступ к vault предоставляется через системный выбор папки и SAF; общий доступ к диску не требуется. Настоящую работу SAF необходимо проверить на устройстве и его файловом провайдере.
 
+Исходник иконки приложения хранится в `src-tauri/icons/source.png`. После его изменения пересоздайте иконки для desktop, Android и iOS командой `npx tauri icon src-tauri/icons/source.png --output src-tauri/icons`. Веб-версия использует ту же иконку из `dist/assets/sloy-s.png`.
+
 ## CI и проверка перед слиянием
 
 `.github/workflows/ci.yml` запускается на pull request в `main`, push в `main` и вручную через Actions → CI → Run workflow. Новый запуск отменяет предыдущий для того же PR или ветки.

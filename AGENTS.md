@@ -23,7 +23,7 @@ Install the pinned tools with `mise install` (Node.js, Rust, and quality gates),
 - `npm run native:build -- --no-bundle`: build the desktop executable.
 - `npm run android:init`, then `npm run android:debug`: initialize and build Android with the SDK/NDK configured.
 
-`npm run native:prepare` generates `.native-web/`; edit source files instead of generated output. Its string replacements depend on anchors in `dist/`, so verify preparation after frontend changes.
+`npm run native:prepare` generates the native frontend; edit source files instead of generated output. Its string replacements depend on anchors in `dist/`, so verify preparation after frontend changes.
 
 Install the optional Git hooks with `hk install`: staged-file checks run before commits, and the full `npm run check` suite runs before pushes. CI remains the required gate. Do not disable lint rules to pass a check; any exception must be narrow, explain its reason, and be approved by a maintainer.
 

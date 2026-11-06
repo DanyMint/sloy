@@ -14,9 +14,9 @@ import {recurrenceLabel} from './recurrence.js';
 import {journalPlan as getPlan,freezeJournal as freezePlan,weeklyTasks,selectJournalTask,selectFocus,addDayTask,addJournalTask,unifyDayReflection,unfreezeJournal} from './journal.js';
 import {focusPlannerHTML,focusCount,yearStatsHTML,quarterStatsHTML,taskChartHTML} from './journal-pages.js';
 import {saveHabit,deleteHabit,setHabitValue,incrementHabit,saveDayLog,sleepMinutes,durationLabel,validDay} from './wellness.js';
-import {habitsHTML,plannerHabitsHTML,diaryWeekHTML,adjacentPeriodsHTML,plannerDiaryHTML,habitForm,habitDeleteConfirmation,habitEntryForm,analyticsHTML} from './wellness-pages.js';
-import {normalizeState,newId,saveArea,saveProject,attachTask,setTaskStatus,taskStatus,repeatLabels,projectLabel,projectArea,taskArea,materializeRepeats,isProjectArchived,isTaskActive,setProjectArchived,deleteProject,setProjectCompleted,isProjectAvailable,isProjectCompleted} from './domain.js';
-import {collectionHTML,collectionBody,entityForm,taskForm,statusBadge} from './pages.js';
+import {diaryWeekHTML,adjacentPeriodsHTML,plannerDiaryHTML,habitForm,habitDeleteConfirmation,habitEntryForm,analyticsHTML} from './wellness-pages.js';
+import {normalizeState,newId,saveArea,saveProject,attachTask,setTaskStatus,projectArea,materializeRepeats,isTaskActive,setProjectArchived,deleteProject,setProjectCompleted,isProjectAvailable} from './domain.js';
+import {entityForm,taskForm,statusBadge} from './pages.js';
 import {STORAGE_KEY,clone,today,dateOf,addDays,period,shiftPeriod,comparison,parseMarkdown,mergeTasks,tasksMarkdown,planMarkdown,validateBackup,seedState} from './model.js';
 const $=s=>document.querySelector(s);
 initSelectMenus();
@@ -38,14 +38,12 @@ let logDate=anchor,habitArchiveOpen=false,habitView='cards',analyticsContext={an
 try{if(localStorage.getItem('kontur-habit-view')==='list')habitView='list';}catch{}
 if(query.get('page')==='diary')history.replaceState(null,'','?page=planner&view='+type+'&date='+anchor);
 const wellnessPage=()=>['habits','analytics'].includes(page);
-let collectionSearch='',statusFilter='open',areaFilter='',projectFilter='';
 const collectionViews={projects:'cards',areas:'cards',tasks:'table'};
-let repeatFilter='all',kanbanDraft=null;
+let kanbanDraft=null;
 try{if(localStorage.getItem('kontur-tasks-view')==='kanban')collectionViews.tasks='kanban';}catch{}
 try{for(const key of Object.keys(collectionViews))if(localStorage.getItem('kontur-'+key+'-view')==='list')collectionViews[key]='list';}catch{}
-if(page==='projects'&&scopeLayouts[entityId]==='kanban')statusFilter='all';
 const collectionContext=()=>({page,entityId,layout:scopeLayouts[entityId]||'table'});
-function navigatePage(next,id=''){mobileShell.close();page=next;entityId=id;collectionSearch='';statusFilter=next==='tasks'&&collectionViews.tasks==='kanban'?'all':'open';areaFilter='';projectFilter='';repeatFilter='all';history.replaceState(null,'','?page='+page+(id?'&entity='+encodeURIComponent(id):'')+'&view='+type+'&date='+(page==='habits'?logDate:page==='analytics'?analyticsContext.anchor:anchor));render();window.scrollTo({top:0,behavior:'instant'});}
+function navigatePage(next,id=''){mobileShell.close();page=next;entityId=id;history.replaceState(null,'','?page='+page+(id?'&entity='+encodeURIComponent(id):'')+'&view='+type+'&date='+(page==='habits'?logDate:page==='analytics'?analyticsContext.anchor:anchor));render();window.scrollTo({top:0,behavior:'instant'});}
 function renderSidebar(){
  const tree=sidebarTreeHTML(state,{page,entityId,expanded:treeExpanded});$('#sidebar-tree').innerHTML=tree;$('#zones-tree').innerHTML=tree;
  document.querySelectorAll('#page-nav [data-page],.sidebar-system [data-page],#mobile-nav [data-page],#mobile-menu [data-page]').forEach(b=>{const active=b.dataset.page===page||!!b.closest('#mobile-nav')&&b.dataset.page==='zones'&&['areas','projects'].includes(page);b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
@@ -73,7 +71,6 @@ function showHabit(id='',preset=''){if(page!=='habits')return;openModal(habitFor
 function saveHabitForm(event){event.preventDefault();if(page!=='habits')return;try{saveHabit(state,{id:event.target.dataset.id,name:$('#habit-name').value,unit:$('#habit-unit').value,step:$('#habit-step').value,target:$('#habit-target').value,icon:$('#habit-form input[name="habit-icon"]:checked')?.value||''},today());persist();closeModal();refreshHabits();toast('Привычка сохранена');}catch(e){$('#habit-error').textContent=e.message;}}
 function saveHabitEntry(event){event.preventDefault();try{setHabitValue(state,event.target.dataset.id,habitDay(),$('#habit-amount').value);persist();closeModal();refreshHabits();toast('Результат дня сохранён');}catch(e){$('#habit-error').textContent=e.message;}}
 function saveDiary(event){if(event)event.preventDefault();if(!$('#diary-form'))return;const bed=$('#sleep-bed-datetime').value,fields={bedDate:bed?bed.slice(0,10):'',bedTime:bed?bed.slice(11,16):'',wakeTime:$('#sleep-wake-time').value,wellbeing:$('#diary-form input[name="wellbeing"]:checked')?.value??null,note:state.dayLogs[anchor]?.note||''};$('#sleep-duration').textContent=durationLabel(sleepMinutes(anchor,fields));try{saveDayLog(state,anchor,fields);persist();renderPeriodSelector();$('#diary-error').textContent='';}catch(e){$('#diary-error').textContent=e.message;}}
-function refreshCollection(){if(['projects','areas'].includes(page)){$('#collection-view').innerHTML=scopeHTML(state,collectionContext());restoreSections();}}
 function showEntity(kind,id='',defaults={}){const entity=state[kind==='project'?'projects':'areas'].find(x=>x.id===id)||{};openModal(entityForm(state,kind,entity,defaults));}
 function saveEntity(event){event.preventDefault();const form=event.target,fields={id:form.dataset.id,name:$('#entity-name').value,icon:$('#entity-form input[name="entity-icon"]:checked')?.value||'',description:$('#entity-description').value,parentId:$('#entity-parent')?.value||null,areaId:$('#entity-area')?.value||null};try{const entity=form.dataset.kind==='project'?saveProject(state,fields):saveArea(state,fields);persist();closeModal();render();toast('Сохранено: '+entity.name);}catch(e){$('#entity-error').textContent=e.message;}}
 function confirmProjectAction(id,remove=false){
@@ -154,7 +151,7 @@ function renderPlanner() {
 function plural(n,forms){return forms[n%10===1&&n%100!==11?0:[2,3,4].includes(n%10)&&![12,13,14].includes(n%100)?1:2];}
 function planRow({item,live,changed,done},index,p,frozen) {
   const [status,color]=liveStatus(live,p);
-  return '<div class="plan-row" '+taskSwipeAttrs(state,live)+'>'+(false?'<button class="task-check '+(live.done?'checked':'')+'" data-action="toggle-done" data-id="'+esc(item.id)+'" aria-label="'+(live.done?'Вернуть в работу: ':'Завершить: ')+esc(item.title)+'" aria-pressed="'+live.done+'" '+(live.cancelled?'disabled':'')+'>'+(live.cancelled?'−':live.done?'✓':'')+'</button>':'<span class="plan-index '+(done?'done':'')+'">'+(done?'✓':String(index+1).padStart(2,'0'))+'</span>')+'<div class="plan-row-body">'+(type==='day'&&live?'<button class="plan-task-title '+(done?'is-done':'')+'" data-action="edit-task" data-id="'+esc(item.id)+'">'+esc(item.title)+'</button>':'<div class="plan-task-title '+(done?'is-done':'')+'">'+esc(item.title)+'</div>')+'<div class="task-meta">'+meta(item)+(frozen&&live?.completedAt?'<span>·</span><span>'+dateFormat(live.completedAt)+'</span>':'')+'</div>'+(frozen&&changed?'<div class="change-note">Изменено в живой задаче: '+esc(live.title!==item.title?live.title:'оценка или срок')+(live.estimate!==item.estimate?' · '+number(live.estimate)+' ч':'')+(live.due!==item.due?' · срок '+(live.due?dateFormat(live.due):'убран'):'')+(live.project!==item.project?' · '+esc(live.project):'')+'</div>':'')+'</div><div class="plan-right">'+(frozen?'<span class="status-inline '+color+'">'+status+'</span>':'<span>'+number(item.estimate)+' ч</span><button class="remove-selection" data-action="select-task" data-id="'+esc(item.id)+'" aria-label="Убрать из плана: '+esc(item.title)+'">×</button>')+'</div></div>';
+  return '<div class="plan-row" '+taskSwipeAttrs(state,live)+'>'+'<span class="plan-index '+(done?'done':'')+'">'+(done?'✓':String(index+1).padStart(2,'0'))+'</span>'+ '<div class="plan-row-body">'+(type==='day'&&live?'<button class="plan-task-title '+(done?'is-done':'')+'" data-action="edit-task" data-id="'+esc(item.id)+'">'+esc(item.title)+'</button>':'<div class="plan-task-title '+(done?'is-done':'')+'">'+esc(item.title)+'</div>')+'<div class="task-meta">'+meta(item)+(frozen&&live?.completedAt?'<span>·</span><span>'+dateFormat(live.completedAt)+'</span>':'')+'</div>'+(frozen&&changed?'<div class="change-note">Изменено в живой задаче: '+esc(live.title!==item.title?live.title:'оценка или срок')+(live.estimate!==item.estimate?' · '+number(live.estimate)+' ч':'')+(live.due!==item.due?' · срок '+(live.due?dateFormat(live.due):'убран'):'')+(live.project!==item.project?' · '+esc(live.project):'')+'</div>':'')+'</div><div class="plan-right">'+(frozen?'<span class="status-inline '+color+'">'+status+'</span>':'<span>'+number(item.estimate)+' ч</span><button class="remove-selection" data-action="select-task" data-id="'+esc(item.id)+'" aria-label="Убрать из плана: '+esc(item.title)+'">×</button>')+'</div></div>';
 }
 function journalTaskRow(t,ids,frozen){return '<div class="task-row" '+taskSwipeAttrs(state,t)+' '+(!frozen&&!t.cancelled?'draggable="true" data-drag-task="'+esc(t.id)+'" data-drag-source="journal"':'')+'>'+(!frozen&&!t.cancelled?'<span class="drag-grip" aria-label="Перетащить задачу">⠿</span>':'')+'<button class="task-check '+(t.done?'checked':'')+'" data-action="toggle-done" data-id="'+esc(t.id)+'" aria-label="'+(t.done?'Вернуть в работу: ':'Завершить: ')+esc(t.title)+'" aria-pressed="'+t.done+'" '+(t.cancelled||type==='day'?'disabled':'')+'>'+ (t.cancelled?'−':t.done?'✓':'')+'</button><div class="task-body"><button class="task-title '+(t.done?'completed':'')+'" data-action="edit-task" data-id="'+esc(t.id)+'">'+esc(t.title)+'</button><div class="task-meta">'+meta(t)+(t.recurrence!=='none'?'<span class="repeat-pill">↻ '+recurrenceLabel(t)+'</span>':'')+(t.cancelled?statusBadge(t):'')+'</div></div>'+(frozen?(ids.has(t.id)?'<span class="selected-indicator">в плане</span>':''):t.cancelled?statusBadge(t):'<button class="select-task '+(ids.has(t.id)?'selected':'')+'" data-action="select-task" data-id="'+esc(t.id)+'" aria-label="'+(ids.has(t.id)?'Убрать из плана: ':'Включить в план: ')+esc(t.title)+'" aria-pressed="'+ids.has(t.id)+'">'+(ids.has(t.id)?'✓':'+')+'</button>')+'</div>';}
 function renderTasks(){
@@ -196,7 +193,6 @@ function showTask(id=null,defaults={}) {
   openModal(taskForm(state,t,!id));
 }
 
-function obsidianUrl(t){return 'obsidian://open?'+new URLSearchParams({vault:state.vault,file:t.source.replace(/\.md$/i,'')+'#^'+t.blockId});}
 function saveTask(event){
   event.preventDefault();const title=$('#edit-title').value.trim(),status=$('#edit-status').value,date=status==='done'?$('#edit-completed').value:today();
   if(!title){$('#form-error').textContent='Введите название.';return;}
@@ -340,7 +336,6 @@ document.addEventListener('submit',event=>{if(event.target.id==='obsidian-settin
 document.addEventListener('input',event=>{const {id,value}=event.target;
   if(event.target.dataset.columnField&&kanbanDraft){kanbanDraft.columns[Number(event.target.closest('[data-column-index]').dataset.columnIndex)][event.target.dataset.columnField]=value;}
   else if(event.target.dataset.boardField&&kanbanDraft)kanbanDraft.fields[event.target.dataset.boardField]=event.target.checked;
-  else if(id==='collection-search'){collectionSearch=value;refreshCollection();}
   else if(id==='task-search'){search=value;renderTasks();}
   else if(id==='plan-goal'){getPlan(state,current()).goal=value;persist();}
   else if(id==='reflection'){getPlan(state,current()).reflection=value;persist();}
@@ -351,13 +346,9 @@ document.addEventListener('change',event=>{const {id,value}=event.target;
   else if(event.target.dataset.columnField&&kanbanDraft){kanbanDraft.columns[Number(event.target.closest('[data-column-index]').dataset.columnIndex)][event.target.dataset.columnField]=value;}
   else if(event.target.dataset.boardField&&kanbanDraft)kanbanDraft.fields[event.target.dataset.boardField]=event.target.checked;
   else if(id==='edit-recurrence'){$('#repeat-custom-wrap').hidden=value!=='custom';$('#edit-repeat-every').disabled=value!=='custom';$('#edit-repeat-unit').disabled=value!=='custom';$('#repeat-from-wrap').hidden=value==='none';$('#repeat-missed-wrap').hidden=value==='none';$('#repeat-help').hidden=value==='none';}
-  else if(id==='collection-repeat'){repeatFilter=value;refreshCollection();}
   else if(id==='well-date'&&value)navigateDay(value);
   else if(event.target.closest('#diary-form'))saveDiary();
   else if(id.startsWith('analytics-')){const key=id.replace('analytics-','');if(key==='date'&&!validDay(value))return;analyticsContext[key==='date'?'anchor':key]=key==='span'?Number(value):value;renderWellness();}
-  else if(id==='collection-status'){statusFilter=value;refreshCollection();}
-  else if(id==='collection-area'){areaFilter=value;refreshCollection();}
-  else if(id==='collection-project'){projectFilter=value;refreshCollection();}
   else if(id==='entity-parent'){const p=state.projects.find(p=>p.id===value);$('#entity-area').disabled=!!p;if(p)$('#entity-area').value=p.areaId||'';}
   else if(id==='edit-project-id'){const p=state.projects.find(p=>p.id===value);$('#edit-area-id').disabled=!!p;if(p)$('#edit-area-id').value=projectArea(state,p)||'';}
   else if(id==='diary-date'&&validDay(value))navigateDay(value);

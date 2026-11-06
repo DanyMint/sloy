@@ -54,7 +54,7 @@ test('settings support custom folders/property values and statistics show legacy
 
 test('Knowledge settings are inside folder details and offer two exclusive modes',()=>{
  const runtime=readFileSync(new URL('../runtime.js',import.meta.url),'utf8');
- assert.match(runtime,/<details class="native-folders">[\s\S]*?\$\{knowledgeSettingsHTML\(f\)\}<[\/]details>/);
+ assert.match(runtime,/<details class="native-folders">[\s\S]*?\$\{knowledgeSettingsHTML\(f\)\}<\/details>/);
  const folders=knowledgeSettingsHTML(defaults),properties=knowledgeSettingsHTML({...defaults,knowledgeMode:'properties'});
  assert.match(folders,/type="radio" name="knowledgeMode" value="folders" checked/);
  assert.match(folders,/data-knowledge-mode-panel="properties" hidden/);

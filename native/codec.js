@@ -1,13 +1,13 @@
-import {parseDocument, stringify} from 'yaml';
+import {parseDocument} from 'yaml';
 import {normalizeState} from '../dist/domain.js';
-import {validateBackup,period,addDays,hash} from '../dist/model.js';
+import {validateBackup,period,hash} from '../dist/model.js';
 import {sleepMinutes} from '../dist/wellness.js';
 import {defaultKnowledgeRules,knowledgeCategories,knowledgeCounts,knowledgeSummary} from '../dist/knowledge.js';
 
 export const defaults={areas:'Areas',projects:'Projects',habits:'Habits/Definitions',habitRecords:'Habits/Records',journals:'Journals',knowledge:'Knowledge',knowledgeMode:'folders',knowledgeTypeProperty:'type',knowledgeTypes:defaultKnowledgeRules(),createdProperty:'created',timezone:'Asia/Aqtobe'};
 export const emptyState=()=>normalizeState({version:1,structureVersion:1,demo:false,tasks:[],areas:[],projects:[],habits:[],plans:{},habitEntries:{},dayLogs:{},knowledgeFacts:{},vault:'',vaultPath:''});
 const copy=v=>JSON.parse(JSON.stringify(v));
-const safe=s=>String(s).replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').trim().replace(/[. ]+$/,'').slice(0,110)||'Untitled';
+const safe=s=>String(s).replace(/[<>:"/\\|?*]/g,'-').replace(/[\s\S]/g,c=>c.charCodeAt(0)<32?'-':c).trim().replace(/[. ]+$/,'').slice(0,110)||'Untitled';
 const inFolder=(path,folder)=>path.startsWith(folder.replace(/\/$/,'')+'/');
 const link=p=>p?'[['+p.replace(/\.md$/i,'')+']]':null;
 export function parseNote(document){
@@ -37,7 +37,7 @@ function resolveParent(value,notes){
  if(matches.length!==1)throw new Error('Родитель не найден или неоднозначен: '+p+'. Дождитесь синхронизации.');return matches[0];
 }
 export function parseRule(rule){
- const r=String(rule||'').trim().toLowerCase(),from=/ when done$/.test(r)?'completion':'due',base=r.replace(/ when done$/,'');
+ const r=String(rule||'').trim().toLowerCase(),from=r.endsWith(' when done')?'completion':'due',base=r.replace(/ when done$/,'');
  const simple={'every day':'daily','every weekday':'weekdays','every week':'weekly','every month':'monthly','every year':'yearly'};
  if(simple[base])return {recurrence:simple[base],repeatFrom:from};
  const m=base.match(/^every (\d+) (days?|weeks?|months?|years?)$/);if(m&&+m[1]>=1&&+m[1]<=365)return {recurrence:'custom',repeatEvery:+m[1],repeatUnit:m[2].replace(/s$/,'')+'s',repeatFrom:from};
@@ -105,7 +105,7 @@ export function finalizeKnowledge(state,counts,today,at=new Date().toISOString()
  }
 }
 export function encodeVault(state,decoded,settings={}){
- const cfg={...defaults,...settings},writes=new Map(),deletes=[],paths=new Map(),before=decoded.state;
+ const cfg={...defaults,...settings},writes=new Map(),deletes=[],paths=new Map();
  const make=(id,folder,name)=>{const old=decoded.bindings.get(id)?.note,path=old?.path||folder+'/'+safe(name)+' -- '+safe(id).slice(-12)+'.md';paths.set(id,path);return old||parseNote({path,text:'# '+name+'\n',hash:null});};
  const entityNotes=new Map();
  for(const [kind,items,folder] of [['area',state.areas,cfg.areas],['project',state.projects,cfg.projects],['habit',state.habits,cfg.habits]])for(const e of items)entityNotes.set(e.id,{kind,e,note:make(e.id,folder,e.name)});

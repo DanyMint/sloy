@@ -4,7 +4,7 @@
 
 ## Запуск и сборка
 
-Нужны Node.js 22+, стабильный Rust 1.90+ и зависимости Tauri для вашей ОС: https://v2.tauri.app/start/prerequisites/.
+Установите закреплённые версии инструментов командой `mise install` и зависимости Tauri для вашей ОС: https://v2.tauri.app/start/prerequisites/.
 
 ```
 npm ci
@@ -27,13 +27,13 @@ Android-проект генерируется и не хранится в реп
 
 `.github/workflows/ci.yml` запускается на pull request в `main`, push в `main` и вручную через Actions → CI → Run workflow. Новый запуск отменяет предыдущий для того же PR или ветки.
 
-Сначала выполняются frontend-тесты, подготовка нативного frontend с тестами адаптера и Rust core tests. Затем параллельно собираются Windows NSIS `.exe`, Linux `.AppImage`, Arch build kit и Android ARM64 preview APK. Arch использует существующий PKGBUILD и архив исходников проверяемого коммита; `makepkg` запускается от отдельного непривилегированного пользователя. В Arch build kit лежат PKGBUILD, desktop-файл и исходники коммита.
+На pull request выполняются `npm run check` (линтеры, форматирование конфигураций, проверки Rust-зависимостей и workflows, тесты frontend/native/Rust/Python) и Betterleaks для изменений PR. Сборки платформ выполняются только в release-пути. Дополнительный еженедельный workflow проверяет всю историю на секреты и lockfiles на известные уязвимости.
 
-В разделе Artifacts соответствующего запуска доступны `Sloy-Windows-x64`, `Sloy-Linux-x64`, `Sloy-Arch-x64` и `Sloy-Android-arm64-preview`; срок хранения — 7 дней. AppImage запускается после `chmod +x Sloy_*.AppImage`. Для Arch распакуйте `Sloy-Arch-x64.tar.gz` и выполните в каталоге `makepkg -si`. Это проверочные сборки: Windows без подписи, Android с временным debug-ключом машины сборки. Такой APK из разных запусков может потребовать переустановки из-за смены ключа. GitHub Release автоматически не создаётся, секреты для CI не нужны.
+В release-пути собираются Windows NSIS `.exe`, Linux `.AppImage`, Arch build kit и Android ARM64 APK. Arch использует PKGBUILD и архив исходников проверяемого коммита; `makepkg` запускается от отдельного непривилегированного пользователя. В build kit лежат PKGBUILD, desktop-файл и исходники коммита. GitHub Release прикладывает артефакты автоматически.
 
-После первого запуска в Settings → Rules → Rulesets для `main` добавьте обязательную проверку **CI passed** (источник GitHub Actions). Она проходит только при успехе всех тестов и всех четырёх платформенных сборок; ошибка, отмена или пропуск зависимости приводят к ошибке итоговой проверки. Включите Require a pull request before merging и Require branches to be up to date before merging. Список bypass должен быть пустым, если правила должны применяться и к владельцу репозитория. Изменения workflow сами по себе не включают защиту ветки.
+После первого запуска в Settings → Rules → Rulesets для `main` добавьте обязательную проверку **CI passed** (источник GitHub Actions). На PR она требует тесты и secrets scan; в release-запуске также обязательны все четыре сборки. Включите Require a pull request before merging и Require branches to be up to date before merging. Список bypass должен быть пустым, если правила должны применяться и к владельцу репозитория. Изменения workflow сами по себе не включают защиту ветки.
 
-CI не заменяет ручную проверку интерфейса и Android SAF на устройстве.
+CI не заменяет ручную проверку интерфейса и Android SAF на устройстве. Локальные проверки можно поставить командой `hk install`; перед коммитом проверяются staged файлы, перед push выполняется полный `npm run check`.
 
 ## Выпуск версии
 

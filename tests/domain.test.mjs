@@ -50,7 +50,7 @@ test('Markdown round-trip retains cancellation, recurrence, IDs and relations',(
  const root=saveProject(s,{name:'Режим',areaId:a.id});attachTask(s,t,root.id);const freshProject=empty();mergeTasks(freshProject,parseMarkdown(tasksMarkdown(s),'Tasks.md'));assert.equal(freshProject.projects[0].areaId,freshProject.areas[0].id);assert.equal(taskArea(freshProject,freshProject.tasks[0]),freshProject.areas[0].id);
 });
 test('backup rejects invalid hierarchy, missing relations and inconsistent task status',()=>{
- const s=empty(),a=saveArea(s,{name:'Area'}),p=saveProject(s,{name:'Root',areaId:a.id}),t=attachTask(s,task(s),p.id);
+ const s=empty(),a=saveArea(s,{name:'Area'}),p=saveProject(s,{name:'Root',areaId:a.id});attachTask(s,task(s),p.id);
  const broken=clone(s);broken.projects[0].parentId=p.id;assert.throws(()=>validateBackup(broken));
  const missing=clone(s);missing.tasks[0].projectId='absent';assert.throws(()=>validateBackup(missing));
  const badStatus=clone(s);badStatus.tasks[0].cancelled=true;badStatus.tasks[0].done=true;assert.throws(()=>validateBackup(badStatus));

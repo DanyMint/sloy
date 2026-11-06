@@ -1,0 +1,42 @@
+amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
+
+steps {
+  ["oxlint"] {
+    glob = List("dist/**/*.js", "native/**/*.js", "native/**/*.mjs", "scripts/**/*.mjs", "tests/**/*.mjs")
+    check = "npm run lint -- {{files}}"
+  }
+  ["agnix"] {
+    glob = List("AGENTS.md")
+    check = "npm run lint:agents"
+  }
+  ["betterleaks-staged"] {
+    glob = List("**")
+    check = "git diff --cached --no-ext-diff --no-textconv --no-color --src-prefix=a/ --dst-prefix=b/ | betterleaks stdin --git-diff --redact"
+  }
+  ["oxfmt-json"] {
+    glob = List("package.json", "src-tauri/tauri.conf.json")
+    check = "npm run format:check -- {{files}}"
+  }
+  ["rustfmt"] {
+    glob = List("src-tauri/**/*.rs")
+    check = "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo fmt --manifest-path src-tauri/core/Cargo.toml -- --check"
+  }
+  ["cargo-machete"] {
+    glob = List("src-tauri/**/*.toml")
+    check = "cargo machete src-tauri"
+  }
+  ["jactionlint"] {
+    glob = List(".github/**/*.yml")
+    check = "jactionlint"
+  }
+}
+
+hooks {
+  ["pre-push"] {
+    steps {
+      ["project-checks"] {
+        check = "npm run check"
+      }
+    }
+  }
+}

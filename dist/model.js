@@ -1,6 +1,6 @@
 import {validateKanban} from './kanban.js';
 import {validateWellness} from './wellness.js';
-import {normalizeState,validateStructure,importLinks,taskStatus,isTaskActive,isProjectArchived,isTaskPlannable} from './domain.js';
+import {normalizeState,validateStructure,importLinks,isProjectArchived,isTaskPlannable} from './domain.js';
 export const STORAGE_KEY = 'kontur-planner-v1';
 export const clone = value => JSON.parse(JSON.stringify(value));
 export const today = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Aqtobe',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());

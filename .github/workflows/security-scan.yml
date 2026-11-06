@@ -1,0 +1,31 @@
+name: Security scans
+
+on:
+  schedule:
+    - cron: '17 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Secrets and dependency vulnerabilities
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          version: 2026.11.2
+      - name: Scan repository history for secrets
+        run: betterleaks git . --log-opts="--full-history --all --diff-filter=tuxdb --diff-merges=first-parent" --redact
+      - name: Scan lockfiles for known vulnerabilities
+        run: >-
+          osv-scanner scan source
+          --lockfile=package-lock.json
+          --lockfile=src-tauri/Cargo.lock
+          --lockfile=src-tauri/core/Cargo.lock

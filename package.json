@@ -12,11 +12,20 @@
     "android:debug": "tauri android build --debug --target aarch64 --apk --ci",
     "android:release": "tauri android build --target aarch64 --apk --ci",
     "test:native": "npm run native:prepare && node --test native/tests/*.test.mjs",
-    "test:rust": "cargo test --manifest-path src-tauri/core/Cargo.toml"
+    "test:rust": "cargo test --locked --manifest-path src-tauri/core/Cargo.toml",
+    "lint": "oxlint --deny-warnings",
+    "format:check": "oxfmt --check",
+    "lint:agents": "agnix --strict .",
+    "check:static": "hk check --all",
+    "check:tests": "npm test && npm run test:native && npm run test:rust && python3 -m unittest discover -s scripts/tests",
+    "check": "npm run check:static && npm run check:tests"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.0",
+    "agnix": "0.57.0",
     "esbuild": "^0.25.0",
+    "oxfmt": "0.75.0",
+    "oxlint": "1.90.0",
     "yaml": "^2.8.0"
   }
 }

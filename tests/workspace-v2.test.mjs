@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {seedState,period,getPlan,freezePlan,clone,comparison,validateBackup,tasksMarkdown,parseMarkdown,mergeTasks,addDays,today} from '../dist/model.js';
 import {journalPlan,freezeJournal,addDayTask} from '../dist/journal.js';
 import {plannedDates,overdueTasks,addOverplan,dayStartPage} from '../dist/day-flow.js';
-import {materializeRepeats,setTaskStatus,saveProject,normalizeState} from '../dist/domain.js';
+import {materializeRepeats,setTaskStatus,normalizeState} from '../dist/domain.js';
 import {saveHabit,setHabitValue} from '../dist/wellness.js';
-import {defaultBoard,applyBoard,moveKanbanTask,boardConfig,taskColumn} from '../dist/kanban.js';
+import {defaultBoard,applyBoard,moveKanbanTask,boardConfig} from '../dist/kanban.js';
 const empty=()=>{const s=seedState();s.plans={};for(const t of s.tasks){t.done=false;t.completedAt='';t.due='';}return s;};
 const counter=()=>{let i=0;return ()=> 'occurrence-'+(++i);};
 

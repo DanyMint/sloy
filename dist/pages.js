@@ -1,7 +1,7 @@
 import {entityIconPicker,entityIcon} from './entity-icons.js';
 import {kanbanHTML,taskViewToggle} from './kanban.js';
 import {recurrenceLabel,repeatForm} from './recurrence.js';
-import {projectLabel,projectArea,projectTasks,areaTasks,taskArea,taskStatus,repeatLabels,isProjectArchived,isProjectAvailable} from './domain.js';
+import {projectLabel,projectArea,projectTasks,areaTasks,taskArea,taskStatus,isProjectAvailable} from './domain.js';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=s=>s?new Date(s+'T12:00:00Z').toLocaleDateString('ru-RU',{day:'numeric',month:'short',timeZone:'UTC'}):'Без срока';
 const statusNames={todo:'К выполнению',done:'Выполнена',cancelled:'Отменена',someday:'Когда-нибудь'};

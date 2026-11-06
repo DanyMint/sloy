@@ -1,4 +1,4 @@
-import {isTaskActive,isTaskPlannable} from './domain.js';
+import {isTaskPlannable} from './domain.js';
 import {period,today} from './model.js';
 export function plannedDates(state,id){return Object.entries(state.plans).filter(([key,p])=>key.startsWith('day:')&&(p.snapshot?.items.some(t=>t.id===id)||p.overplan?.includes(id))).map(([key])=>key.slice(4)).sort();}
 export function overdueTasks(state,day=today()){

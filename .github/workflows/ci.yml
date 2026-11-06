@@ -115,7 +115,9 @@ jobs:
       - name: Install build dependencies
         run: pacman -Syu --noconfirm --needed git rust nodejs npm webkit2gtk-4.1 gtk3 librsvg openssl
       - uses: actions/checkout@v4
-      - name: Build package and prepare Arch build kit
+      - name: Prepare source archive
+        run: git -c safe.directory="$GITHUB_WORKSPACE" archive --format=zip --prefix=Sloy-source/ --output=packaging/arch/Sloy-source.zip HEAD
+      - name: Build package as an unprivileged user
         run: |
           git -c safe.directory="$GITHUB_WORKSPACE" archive --format=zip --prefix=Sloy-source/ --output=packaging/arch/Sloy-source.zip HEAD
           useradd --create-home builder

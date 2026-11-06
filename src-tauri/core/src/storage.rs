@@ -331,7 +331,10 @@ pub struct Changes {
     pub deletes: Vec<Delete>,
 }
 pub fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 pub fn database(path: &Path) -> Result<Connection> {
     let db = Connection::open(path).map_err(|e| e.to_string())?;

@@ -5,7 +5,7 @@ import {seedState,clone,validateBackup,period,getPlan,freezePlan,comparison,plan
 const empty=()=>normalizeState({version:1,demo:false,tasks:[],plans:{},vault:''});
 function task(state,id='t'){const t={id,title:'Действие',project:'Входящие',estimate:1,due:'2026-10-29',done:false,completedAt:'',source:'Tasks.md',blockId:id,archived:false};state.tasks.push(t);normalizeState(state);return t;}
 test('old workspace migrates without changing task IDs or frozen snapshots',()=>{
- const state=seedState(),p=period('week','2026-10-29');freezePlan(state,p);const snapshot=clone(getPlan(state,p).snapshot),ids=state.tasks.map(t=>t.id);
+ const state=seedState(),p=period('week','2026-10-29');getPlan(state,p).selected=[state.tasks[0].id];freezePlan(state,p);const snapshot=clone(getPlan(state,p).snapshot),ids=state.tasks.map(t=>t.id);
  delete state.structureVersion;delete state.areas;delete state.projects;for(const t of state.tasks){delete t.projectId;delete t.areaId;delete t.recurrence;delete t.cancelled;}
  const upgraded=validateBackup(state);assert.deepEqual(upgraded.tasks.map(t=>t.id),ids);assert.deepEqual(getPlan(upgraded,p).snapshot,snapshot);assert.ok(upgraded.projects.length);assert.equal(upgraded.tasks[0].recurrence,'none');
  assert.deepEqual(validateBackup(upgraded),upgraded);

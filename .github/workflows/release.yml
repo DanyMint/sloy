@@ -58,10 +58,10 @@ jobs:
           import hashlib, pathlib
           root = pathlib.Path('release')
           files = sorted(root.iterdir())
-          for suffix in ('.exe', '.pkg.tar.zst', '.apk'):
+          for suffix in ('.exe', '.AppImage', '.tar.gz', '.apk'):
               if sum(p.name.endswith(suffix) for p in files) != 1:
                   raise SystemExit(f'Expected exactly one {suffix} package')
-          if len(files) != 3:
+          if len(files) != 4:
               raise SystemExit('Unexpected release files')
           with (root / 'SHA256SUMS').open('w') as output:
               for path in files:

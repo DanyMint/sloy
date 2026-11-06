@@ -76,8 +76,37 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  arch:
-    name: Arch build
+  linux:
+    name: Linux AppImage build
+    needs: tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl wget file libwebkit2gtk-4.1-dev \
+            libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      - run: npm run native:build -- --bundles appimage -- --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sloy-Linux-x64
+          path: src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 7
+
+  arch-source:
+    name: Arch build kit
     needs: tests
     runs-on: ubuntu-24.04
     container: archlinux:base-devel
@@ -86,17 +115,19 @@ jobs:
       - name: Install build dependencies
         run: pacman -Syu --noconfirm --needed git rust nodejs npm webkit2gtk-4.1 gtk3 librsvg openssl
       - uses: actions/checkout@v4
-      - name: Prepare source archive
-        run: git -c safe.directory="$GITHUB_WORKSPACE" archive --format=zip --prefix=Sloy-source/ --output=packaging/arch/Sloy-source.zip HEAD
-      - name: Build package as an unprivileged user
+      - name: Build package and prepare Arch build kit
         run: |
+          git -c safe.directory="$GITHUB_WORKSPACE" archive --format=zip --prefix=Sloy-source/ --output=packaging/arch/Sloy-source.zip HEAD
           useradd --create-home builder
           chown -R builder:builder packaging/arch
           runuser -u builder -- bash -c 'cd packaging/arch && makepkg --noconfirm'
+          mkdir -p Sloy-Arch
+          cp packaging/arch/PKGBUILD packaging/arch/sloy.desktop packaging/arch/Sloy-source.zip Sloy-Arch/
+          tar -czf Sloy-Arch-x64.tar.gz Sloy-Arch
       - uses: actions/upload-artifact@v4
         with:
           name: Sloy-Arch-x64
-          path: packaging/arch/*.pkg.tar.zst
+          path: Sloy-Arch-x64.tar.gz
           if-no-files-found: error
           retention-days: 7
 
@@ -161,7 +192,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: ${{ always() }}
-    needs: [tests, windows, arch, android]
+    needs: [tests, windows, linux, arch-source, android]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -172,7 +203,7 @@ jobs:
           python3 - <<'PY'
           import json, os
           results = json.loads(os.environ['RESULTS'])
-          if len(results) != 4 or any(result != 'success' for result in results):
+          if len(results) != 5 or any(result != 'success' for result in results):
               raise SystemExit(f'CI failed: {results}')
           print('All tests and platform builds passed.')
           PY

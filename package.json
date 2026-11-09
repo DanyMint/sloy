@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.0",
-    "agnix": "0.60.1",
+    "agnix": "0.60.3",
     "esbuild": "^0.28.2",
     "oxfmt": "0.75.0",
     "oxlint": "1.90.0",

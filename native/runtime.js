@@ -6,7 +6,30 @@ import {updateWorkspaceAvailability} from './workspace-availability.js';
 const invoke=(name,args={})=>window.__TAURI__.core.invoke(name,args),$=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let selectedTreeUri=null,settings,binding,engine,busy=false,connected=false,status='Настройте хранилище',lastContext,lastReport,synced=false;
 const date=()=>new Intl.DateTimeFormat('en-CA',{timeZone:settings?.folders.timezone||'Asia/Aqtobe',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-const native={get state(){return engine.state;},get settings(){return settings;},save:state=>{if(!connected){binding?.toast('Сначала подключите хранилище');return false;}engine.save(state);return true;},bind:value=>binding=value,rendered:context=>{lastContext=context;decorate();}};window.nativeSloy=native;
+const dayEdits=new Map();
+const dayFieldSelector='#reflection,#sleep-bed-datetime,#sleep-wake-time';
+const editingDayField=()=>document.activeElement?.matches(dayFieldSelector);
+function editDayField(key,update){
+ const state=binding.get();
+ update(state);
+ if(connected&&!busy){engine.save(state);return;}
+ if(!connected&&!dayEdits.size)binding.toast('Черновик доступен до закрытия приложения. Подключите хранилище, чтобы сохранить.');
+ dayEdits.set(key,update);
+}
+function applyDayEdits(state){
+ for(const [key,update] of dayEdits){
+  try{update(state);}catch(error){dayEdits.delete(key);binding?.toast(error.message);}
+ }
+}
+function saveDayEdits(){
+ if(!connected||!dayEdits.size)return;
+ const state=binding.get();
+ applyDayEdits(state);
+ if(!dayEdits.size)return;
+ engine.save(state);
+ dayEdits.clear();
+}
+const native={editDayField,get state(){return engine.state;},get settings(){return settings;},save:state=>{if(!connected){binding?.toast('Сначала подключите хранилище');return false;}engine.save(state);return true;},bind:value=>binding=value,rendered:context=>{lastContext=context;decorate();}};window.nativeSloy=native;
 function paint(){
  document.querySelectorAll('#native-settings-form button,[data-native-rebuild],[data-native-recovery]').forEach(b=>b.disabled=busy);
  document.querySelectorAll('[data-native-sync]').forEach(b=>{b.disabled=busy||!connected;b.setAttribute('aria-label',synced?'Синхронизировано':'Синхронизировать');const icon=b.querySelector('.nav-symbol');if(icon&&b.dataset.synced!==String(synced)){icon.innerHTML=synced?syncDoneIcon:syncIcon;b.dataset.synced=String(synced);}});
@@ -39,14 +62,18 @@ function fields(){const f=settings.folders,s=settings.syncthing;return `<form id
 function updateSyncSettings(form){form.querySelector('#native-sync-options').hidden=!form.elements.syncEnabled.checked;}
 function decorate(){updateWorkspaceAvailability(document,lastContext?.page,{busy,connected});installButtons();const original=$('#obsidian-settings-form');if(original)original.closest('section').hidden=true;if(lastContext?.page==='settings'){let section=$('#native-settings');if(!section){section=document.createElement('div');section.id='native-settings';$('#settings-view').append(section);}if(!section.querySelector('#native-settings-form'))section.innerHTML=fields();}$('#native-period-statistics')?.remove();if(lastContext?.page==='planner'){const {type,anchor,state}=lastContext;const y=anchor.slice(0,4),m=+anchor.slice(5,7),start=type==='year'?y+'-01-01':type==='quarter'?y+'-'+String(Math.floor((m-1)/3)*3+1).padStart(2,'0')+'-01':type==='week'?new Date(Date.parse(anchor+'T12:00:00Z')-((new Date(anchor+'T12:00:00Z').getUTCDay()+6)%7)*86400000).toISOString().slice(0,10):anchor;const end=type==='year'?y+'-12-31':type==='quarter'?new Date(Date.UTC(+y,Math.floor((m-1)/3)*3+3,0,12)).toISOString().slice(0,10):type==='week'?new Date(Date.parse(start+'T12:00:00Z')+6*86400000).toISOString().slice(0,10):anchor;$('#planner-view').insertAdjacentHTML('beforeend',knowledgeStatisticsHTML(state.knowledgeFacts,start,end));}paint();}
 async function recovery(){const rows=await invoke('vault_recovery');const modal=$('#modal');$('#modal-content').innerHTML='<h2>Несохранённые изменения</h2><p>Эти копии хранятся локально вне Obsidian. Перед повторной попыткой сравните их с файлами хранилища.</p>'+rows.map(r=>`<details><summary>${esc(r.name)}</summary><textarea class="field" rows="7" readonly>${esc(r.text)}</textarea></details>`).join('')+(!rows.length?'<p>Сохранённых копий нет.</p>':'')+'<div class="native-actions"><button type="button" class="secondary-button" data-native-retry>Повторить запись</button><button type="button" class="secondary-button" data-native-reload>Перечитать хранилище, сохранив копии</button></div>';if(!modal.open)modal.showModal();}
-async function check({force=false,rebuild=false}={}){if(busy||!settings.vaultPath)return;busy=true;updateWorkspaceAvailability(document,lastContext?.page,{busy,connected});paint();try{await engine.reconcile({force,rebuild});connected=true;}catch(e){status=String(e.message||e);binding?.toast(status);}finally{busy=false;decorate();}}
-async function connect(form){if(busy)return;busy=true;paint();try{await engine.flush();const v=new FormData(form),folders={...defaults};for(const key of Object.keys(folders))if(typeof defaults[key]==='string')folders[key]=String(v.get(key)||'').trim();folders.knowledgeTypes=knowledgeRulesFromForm(v);new Intl.DateTimeFormat('en',{timeZone:folders.timezone}).format(new Date());connected=false;settings=await invoke('settings_save',{settings:{vaultPath:String(v.get('vaultPath')).trim(),androidTreeUri:selectedTreeUri||settings.androidTreeUri,folders,syncthing:{enabled:v.has('syncEnabled'),url:String(v.get('syncUrl')).trim(),folderId:String(v.get('folderId')).trim(),apiKey:String(v.get('apiKey')),timeoutSeconds:Number(v.get('timeout')||60),trustedPem:String(v.get('trustedPem')||'')}}});engine.settings={...settings.folders,vaultPath:settings.vaultPath,vaultName:settings.vaultPath.split(/[\\/]/).pop()};engine.requiresFull=true;engine.documents.clear();await engine.reconcile({force:true});connected=true;status='Хранилище подключено';const apiKey=form.elements.apiKey;apiKey.value='';apiKey.placeholder=settings.apiKeyConfigured?'Настроен · оставьте пустым, чтобы сохранить':'Из настроек Syncthing';binding?.toast(status);}catch(e){status=String(e.message||e);binding?.toast(status);}finally{busy=false;decorate();}}
+async function check({force=false,rebuild=false}={}){if(busy||!settings.vaultPath)return;busy=true;updateWorkspaceAvailability(document,lastContext?.page,{busy,connected});paint();try{await engine.reconcile({force,rebuild});connected=true;}catch(e){status=String(e.message||e);binding?.toast(status);}finally{busy=false;saveDayEdits();decorate();}}
+async function connect(form){if(busy)return;busy=true;paint();try{await engine.flush();const v=new FormData(form),folders={...defaults};for(const key of Object.keys(folders))if(typeof defaults[key]==='string')folders[key]=String(v.get(key)||'').trim();folders.knowledgeTypes=knowledgeRulesFromForm(v);new Intl.DateTimeFormat('en',{timeZone:folders.timezone}).format(new Date());connected=false;settings=await invoke('settings_save',{settings:{vaultPath:String(v.get('vaultPath')).trim(),androidTreeUri:selectedTreeUri||settings.androidTreeUri,folders,syncthing:{enabled:v.has('syncEnabled'),url:String(v.get('syncUrl')).trim(),folderId:String(v.get('folderId')).trim(),apiKey:String(v.get('apiKey')),timeoutSeconds:Number(v.get('timeout')||60),trustedPem:String(v.get('trustedPem')||'')}}});engine.settings={...settings.folders,vaultPath:settings.vaultPath,vaultName:settings.vaultPath.split(/[\\/]/).pop()};engine.requiresFull=true;engine.documents.clear();await engine.reconcile({force:true});connected=true;status='Хранилище подключено';const apiKey=form.elements.apiKey;apiKey.value='';apiKey.placeholder=settings.apiKeyConfigured?'Настроен · оставьте пустым, чтобы сохранить':'Из настроек Syncthing';binding?.toast(status);}catch(e){status=String(e.message||e);binding?.toast(status);}finally{busy=false;saveDayEdits();decorate();}}
 function dirtyModal(){const modal=$('#modal');if(!modal.open)return false;const form=modal.querySelector('form');if(!form)return true;if(!form.reportValidity())return true;form.requestSubmit();return modal.open;}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-native-sync],[data-native-browse],[data-native-rebuild],[data-native-recovery],[data-native-retry],[data-native-reload]');if(b){e.preventDefault();e.stopImmediatePropagation();(async()=>{if(b.hasAttribute('data-native-browse')){const path=await invoke('vault_pick');if(path){$('#native-vault').value=path.path;selectedTreeUri=path.androidTreeUri||null;}}else if(b.hasAttribute('data-native-recovery'))await recovery();else if(b.hasAttribute('data-native-reload')){engine.discardPending();$('#modal').close();await check();}else if(b.hasAttribute('data-native-retry')){engine.failure=null;$('#modal').close();await check({force:true});}else if(!dirtyModal())await check({force:true,rebuild:b.hasAttribute('data-native-rebuild')});})().catch(error=>binding?.toast(String(error)));return;}const link=e.target.closest('a[href^="obsidian:"]');if(link){e.preventDefault();e.stopImmediatePropagation();engine.flush().then(()=>invoke('open_obsidian',{url:link.href})).catch(e=>binding?.toast(String(e)));return;}if(!connected&&e.target.closest('[data-action="new-task"],[data-action="new-project"],[data-action="new-area"],[data-action="new-habit"],.tree-create,[data-action="import"]')){e.preventDefault();e.stopImmediatePropagation();binding?.toast('Сначала подключите хранилище в настройках');}},true);
+const vaultWriteActions=new Set(['new-task','edit-task','select-task','toggle-done','edit-project','activate-task','edit-repeat','clear-wellbeing','import']);
+const vaultDialogActions=new Set(['confirm-freeze','confirm-unfreeze','today-new-task','today-pick']);
 document.addEventListener('click',event=>{
+ if(connected&&!busy)return;
  const action=event.target.closest('button[data-action]');
- if(!action?.closest('.live-panel[data-vault-readonly]'))return;
- if(!['new-task','edit-task','select-task','toggle-done','edit-project'].includes(action.dataset.action))return;
+ if(!action)return;
+ if(!vaultDialogActions.has(action.dataset.action)&&
+   !(action.closest('[data-vault-readonly]')&&vaultWriteActions.has(action.dataset.action)))return;
  event.preventDefault();
  event.stopImmediatePropagation();
  binding?.toast(connected?'Изменения доступны после синхронизации':'Сначала подключите хранилище в настройках');
@@ -56,8 +83,16 @@ document.addEventListener('invalid',e=>{if(e.target.form?.id!=='native-settings-
 document.addEventListener('submit',e=>{if(e.target.id==='native-settings-form'){e.preventDefault();e.stopImmediatePropagation();connect(e.target);}},true);
 window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!dirtyModal())check({force:true});}});
 settings=await invoke('settings_get');settings.folders={...defaults,...settings.folders};settings.syncthing??={};
-engine=new VaultEngine({commit:(changes,vaultPath)=>invoke('vault_commit',{changes,vaultPath}),scan:async(rebuild,initial,vaultPath)=>{const report=await invoke('vault_scan',{rebuild,initial,vaultPath});report.knowledge[date()]??=0;return report;},sync:()=>invoke('syncthing_sync').catch(e=>({status:'error',message:String(e)}))},{settings:{...settings.folders,vaultPath:settings.vaultPath,vaultName:settings.vaultPath.split(/[\\/]/).pop()},today:date,onState:state=>{if(binding&&!engine.pending)binding.set(state);},onStatus:(kind,data)=>{if(kind==='ready'&&data.sync)synced=data.sync.status==='complete'&&!data.report.conflicts?.length;else if(kind==='ready'){if(data.report.conflicts?.length)synced=false;}else if(kind!=='checking')synced=false;if(kind==='ready')lastReport=data.report;status=kind==='error'?String(data.message||data):kind==='ready'?data.sync?.message||`Сверено файлов: ${data.report.filesChecked}; перечитано: ${data.report.filesRead}`:kind==='saving'?'Сохранение…':kind==='saved'?'Изменения записаны':kind==='checking'?'Синхронизация и сверка…':kind;if(kind==='ready'&&data.report.conflicts?.length)status+=' · Конфликтных копий: '+data.report.conflicts.length;paint();}});
+engine=new VaultEngine({commit:(changes,vaultPath)=>invoke('vault_commit',{changes,vaultPath}),scan:async(rebuild,initial,vaultPath)=>{const report=await invoke('vault_scan',{rebuild,initial,vaultPath});report.knowledge[date()]??=0;return report;},sync:()=>invoke('syncthing_sync').catch(e=>({status:'error',message:String(e)}))},{settings:{...settings.folders,vaultPath:settings.vaultPath,vaultName:settings.vaultPath.split(/[\\/]/).pop()},today:date,onState:state=>{if(binding&&!engine.pending){applyDayEdits(state);binding.set(state,{refresh:!editingDayField()});}},onStatus:(kind,data)=>{if(kind==='ready'&&data.sync)synced=data.sync.status==='complete'&&!data.report.conflicts?.length;else if(kind==='ready'){if(data.report.conflicts?.length)synced=false;}else if(kind!=='checking')synced=false;if(kind==='ready')lastReport=data.report;status=kind==='error'?String(data.message||data):kind==='ready'?data.sync?.message||`Сверено файлов: ${data.report.filesChecked}; перечитано: ${data.report.filesRead}`:kind==='saving'?'Сохранение…':kind==='saved'?'Изменения записаны':kind==='checking'?'Синхронизация и сверка…':kind;if(kind==='ready'&&data.report.conflicts?.length)status+=' · Конфликтных копий: '+data.report.conflicts.length;paint();}});
 if(settings.vaultPath){try{await engine.reconcile({force:true});connected=true;}catch(e){status=String(e.message||e);}}if(!connected)history.replaceState(null,'','?page=settings');
 await import('./app.js');
-window.addEventListener('focus',()=>{if(connected&&!$('#modal').open)check();});document.addEventListener('visibilitychange',()=>{if(document.hidden)engine.flush().catch(()=>{});else if(connected)check();});setInterval(()=>{if(connected&&!document.hidden&&!$('#modal').open&&document.activeElement?.tagName!=='INPUT'&&document.activeElement?.tagName!=='TEXTAREA')check();},60000);
+function checkWhenIdle(){
+ if(connected&&!document.hidden&&!$('#modal').open&&!document.activeElement?.matches('input,textarea,select'))check();
+}
+window.addEventListener('focus',checkWhenIdle);
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden)engine.flush().catch(()=>{});
+ else checkWhenIdle();
+});
+setInterval(checkWhenIdle,60000);
 if(window.__TAURI__.window){try{await registerWindowClose(window.__TAURI__.window.getCurrentWindow(),{dirtyModal,flush:()=>engine.flush(),toast:message=>binding?.toast(message)});}catch{}}

@@ -128,24 +128,49 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Install build dependencies
-        run: pacman -Syu --noconfirm --needed git rust nodejs npm webkit2gtk-4.1 gtk3 librsvg openssl
+        run: pacman -Syu --noconfirm --needed git rust nodejs npm webkit2gtk-4.1 gtk3 librsvg openssl desktop-file-utils
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - name: Validate Arch build as an unprivileged user
+      - name: Detect Arch icon and packaging changes
+        id: arch-changes
         if: ${{ !inputs.release }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ]; then
+            exit 0
+          fi
+          if git -c safe.directory="$GITHUB_WORKSPACE" cat-file -e "$BASE_SHA^{commit}"; then
+            changed=$(git -c safe.directory="$GITHUB_WORKSPACE" diff --name-only "$BASE_SHA" HEAD -- \
+              src-tauri/icons src-tauri/tauri.conf.json src-tauri/tauri.linux.conf.json packaging/arch \
+              scripts/check-arch-icons.sh package.json package-lock.json .github/workflows/ci.yml)
+            if [ -z "$changed" ]; then
+              exit 0
+            fi
+          fi
+          echo 'build_package=true' >> "$GITHUB_OUTPUT"
+      - name: Validate Arch build as an unprivileged user
+        if: ${{ !inputs.release && steps.arch-changes.outputs.build_package != 'true' }}
         run: |
           useradd --create-home builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
           cd "$GITHUB_WORKSPACE"
           runuser -u builder -- bash -c 'npm ci && npm run native:build -- --debug --no-bundle -- --locked'
       - name: Build package as an unprivileged user
-        if: inputs.release
+        if: inputs.release || steps.arch-changes.outputs.build_package == 'true'
         run: |
           git -c safe.directory="$GITHUB_WORKSPACE" archive --format=zip --prefix=Sloy-source/ --output=packaging/arch/Sloy-source.zip HEAD
           useradd --create-home builder
           chown -R builder:builder packaging/arch
           runuser -u builder -- bash -c 'cd packaging/arch && makepkg --noconfirm'
+      - name: Check packaged desktop entry and icons
+        if: inputs.release || steps.arch-changes.outputs.build_package == 'true'
+        run: bash scripts/check-arch-icons.sh packaging/arch/*.pkg.tar.zst
+      - name: Assemble release build kit
+        if: inputs.release
+        run: |
           mkdir -p Sloy-Arch
           cp packaging/arch/PKGBUILD packaging/arch/sloy.desktop packaging/arch/Sloy-source.zip Sloy-Arch/
           tar -czf Sloy-Arch-x64.tar.gz Sloy-Arch
@@ -207,6 +232,16 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Check packaged launcher icons
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: |
+          shopt -s globstar nullglob
+          if [[ "$RELEASE" == 'true' ]]; then
+            python3 scripts/check-apk-icons.py release/*.apk
+          else
+            python3 scripts/check-apk-icons.py src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: inputs.release
         with:

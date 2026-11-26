@@ -23,17 +23,19 @@ Android: JDK 21, Android SDK 36, NDK r28c, Rust target `aarch64-linux-android`. 
 
 Android-проект генерируется и не хранится в репозитории. Доступ к vault предоставляется через системный выбор папки и SAF; общий доступ к диску не требуется. Настоящую работу SAF необходимо проверить на устройстве и его файловом провайдере.
 
-Исходник иконки приложения хранится в `src-tauri/icons/source.png`. После его изменения пересоздайте иконки для desktop, Android и iOS командой `npx tauri icon src-tauri/icons/source.png --output src-tauri/icons`. Веб-версия использует ту же иконку из `dist/assets/sloy-s.png`.
+Исходник иконки приложения хранится в `src-tauri/icons/source.png`. После его изменения пересоздайте иконки командой `npx tauri icon src-tauri/icons/source.png --output src-tauri/icons`. `npm run android:init` генерирует launcher resources из `src-tauri/icons/icon.png` и устанавливает их в Android-проект. После обновления иконки запустите `android:init` повторно. Веб-версия использует ту же иконку из `dist/assets/sloy-s.png`.
 
 ## CI и проверка перед слиянием
 
 `.github/workflows/ci.yml` запускается на pull request в `main`, push в `main` и вручную через Actions → CI → Run workflow. Новый запуск отменяет предыдущий для того же PR или ветки.
 
-На pull request выполняются `npm run check` (линтеры, форматирование конфигураций, проверки Rust-зависимостей и workflows, тесты frontend/native/Rust/Python) и Betterleaks для изменений PR. Сборки платформ выполняются только в release-пути. Дополнительный еженедельный workflow проверяет всю историю на секреты и lockfiles на известные уязвимости.
+CI выполняет `npm run check` (линтеры, форматирование конфигураций, проверки Rust-зависимостей и workflows, тесты frontend/native/Rust/Python) и запускает сборки для всех четырёх платформ. Вне release-пути Windows и Linux собираются с `--debug --no-bundle`, а для Android собирается debug APK и проверяются ссылки манифеста и ресурсы иконок. Arch также выполняет debug-сборку без упаковки. Если PR или push в `main` затрагивает иконки или их пакетирование, задача Arch вместо этого собирает `.pkg.tar.zst` и проверяет desktop entry и иконки внутри пакета. Артефакты публикуются только в release-пути.
 
-В release-пути собираются Windows NSIS `.exe`, Linux `.AppImage`, Arch build kit и Android ARM64 APK. Arch использует PKGBUILD и архив исходников проверяемого коммита; `makepkg` запускается от отдельного непривилегированного пользователя. В build kit лежат PKGBUILD, desktop-файл и исходники коммита. GitHub Release прикладывает артефакты автоматически.
+На pull request дополнительно выполняется Betterleaks для изменений PR. Еженедельный workflow проверяет всю историю на секреты и lockfiles на известные уязвимости.
 
-После первого запуска в Settings → Rules → Rulesets для `main` добавьте обязательную проверку **CI passed** (источник GitHub Actions). На PR она требует тесты и secrets scan; в release-запуске также обязательны все четыре сборки. Включите Require a pull request before merging и Require branches to be up to date before merging. Список bypass должен быть пустым, если правила должны применяться и к владельцу репозитория. Изменения workflow сами по себе не включают защиту ветки.
+В release-пути собираются Windows NSIS `.exe`, Linux `.AppImage`, Arch build kit и Android ARM64 APK. Arch использует PKGBUILD и архив исходников проверяемого коммита. `makepkg` запускается от непривилегированного пользователя, а содержимое пакета проверяется перед созданием build kit с PKGBUILD, desktop-файлом и исходниками. Иконки Android проверяются после подписи APK. GitHub Release прикладывает артефакты автоматически.
+
+После первого запуска в Settings → Rules → Rulesets для `main` добавьте обязательную проверку **CI passed** (источник GitHub Actions). Она требует успешных тестов и всех четырёх платформенных сборок. На PR также требуется успешный secrets scan. Включите Require a pull request before merging и Require branches to be up to date before merging. Список bypass должен быть пустым, если правила должны применяться и к владельцу репозитория. Изменения workflow сами по себе не включают защиту ветки.
 
 CI не заменяет ручную проверку интерфейса и Android SAF на устройстве. Локальные проверки можно поставить командой `hk install`; перед коммитом проверяются staged файлы, перед push выполняется полный `npm run check`.
 

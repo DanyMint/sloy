@@ -3,6 +3,7 @@ Name=Sloy
 Comment=Journal and tasks for Obsidian
 Exec=sloy
 Icon=sloy
+StartupWMClass=Sloy
 Type=Application
 Categories=Office;ProjectManagement;
 Terminal=false

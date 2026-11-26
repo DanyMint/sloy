@@ -1,6 +1,6 @@
 pkgname=sloy
 pkgver=0.1.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Journal, tasks and habits over an Obsidian Markdown vault'
 arch=('x86_64')
 license=('custom')
@@ -20,6 +20,12 @@ build() {
 package() {
   cd "$srcdir/Sloy-source"
   install -Dm755 src-tauri/target/release/sloy "$pkgdir/usr/bin/sloy"
-  install -Dm644 src-tauri/icons/128x128.png "$pkgdir/usr/share/icons/hicolor/128x128/apps/sloy.png"
+  local size icons="$pkgdir/usr/share/icons/hicolor"
+  for size in 32x32 64x64 128x128; do
+    install -Dm644 "src-tauri/icons/$size.png" "$icons/$size/apps/sloy.png"
+  done
+  install -Dm644 src-tauri/icons/128x128@2x.png "$icons/256x256/apps/sloy.png"
+  install -Dm644 src-tauri/icons/icon.png "$icons/512x512/apps/sloy.png"
+  # GTK uses the executable name as the Wayland app_id.
   install -Dm644 packaging/arch/sloy.desktop "$pkgdir/usr/share/applications/sloy.desktop"
 }

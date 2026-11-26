@@ -1,5 +1,5 @@
 .mobile-nav{display:none}
-.mobile-menu{position:fixed;inset:0 0 0 auto;margin:0;width:min(84vw,330px);max-width:none;height:100vh;height:100dvh;max-height:100%;padding:22px 20px calc(22px + env(safe-area-inset-bottom));border:0;border-left:1px solid var(--line);border-radius:16px 0 0 16px;background:var(--surface);color:var(--text);box-shadow:-20px 0 60px #00000024;overflow-y:auto;overscroll-behavior:contain}
+.mobile-menu{position:fixed;inset:0 0 0 auto;margin:0;width:min(84vw,330px);max-width:none;height:100vh;height:100dvh;max-height:100%;padding:calc(22px + env(safe-area-inset-top, 0px)) 20px calc(22px + env(safe-area-inset-bottom));border:0;border-left:1px solid var(--line);border-radius:16px 0 0 16px;background:var(--surface);color:var(--text);box-shadow:-20px 0 60px #00000024;overflow-y:auto;overscroll-behavior:contain}
 .mobile-menu[open]{display:flex;flex-direction:column;animation:mobile-menu-in .18s ease-out}
 .mobile-menu::backdrop{background:#0007;backdrop-filter:none}
 .mobile-menu-heading{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:22px}
@@ -32,7 +32,7 @@ html[data-mobile-menu-open],html[data-mobile-menu-open] body{overflow:hidden}
  :root{--mobile-bar-height:68px}
  #sidebar{display:none!important}
  html[data-sidebar] .app-shell{margin-left:0}
- main{padding:25px 18px calc(var(--mobile-bar-height) + env(safe-area-inset-bottom) + 28px)}
+ main{padding:calc(25px + env(safe-area-inset-top, 0px)) 18px calc(var(--mobile-bar-height) + env(safe-area-inset-bottom) + 28px)}
  .mobile-nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;height:calc(var(--mobile-bar-height) + env(safe-area-inset-bottom));padding:6px max(10px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -5px 22px #00000008}
  .mobile-nav-button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-width:0;min-height:52px;border-radius:9px;padding:5px 2px;font-size:10px;line-height:1.2;color:var(--secondary);-webkit-tap-highlight-color:transparent}
  .mobile-nav-button svg{display:block;width:22px;height:22px;flex-shrink:0}

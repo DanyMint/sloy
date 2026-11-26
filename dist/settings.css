@@ -54,7 +54,9 @@
  .settings-heading{margin-bottom:22px}
  .settings-heading p{font-size:12px}
  #settings-view .settings-section{padding:20px 18px;margin-bottom:14px}
- .settings-section-heading{gap:10px}
+ .settings-section-heading{flex-wrap:wrap;gap:6px 10px}
+ #settings-view .vault-path-row{flex-direction:column}
+ #settings-view .vault-path-row .field{width:100%;flex:auto}
  .settings-meta{font-size:10px;max-width:90px}
  .settings-row{gap:14px}
  .settings-row .theme-control{gap:8px}

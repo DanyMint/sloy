@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {habitStreaks,habitGoalMet} from '../dist/habit-streaks.js';
 import {analyticsDemo} from '../dist/analytics-demo.js';
 import {analyticsRows,analyticsSummary,correlation} from '../dist/analytics.js';
-import {seedState,validateBackup,clone,addDays,today} from '../dist/model.js';
+import {seedState,validateBackup,clone,addDays} from '../dist/model.js';
 import {saveArea,saveProject} from '../dist/domain.js';
 const h={id:'water',name:'Вода',unit:'мл',step:250,target:3000,createdOn:'2026-10-01',archivedOn:null};
 function entries(days){return {habits:[h],habitEntries:Object.fromEntries(days.map(d=>[d,{water:{value:2000,target:2000,unit:'мл'}}]))};}
@@ -31,7 +31,7 @@ test('future entries never extend a streak; archival stops the current series wi
  assert.equal(habitGoalMet(s,h,'2026-10-31','2026-10-30'),false);
 });
 test('demo is a valid isolated 12-week workspace with varying correlated metrics and no future logs',()=>{
- const own=seedState(),saved=clone(own),now=today(),demo=analyticsDemo(now);
+ const own=seedState(),saved=clone(own),now='2026-11-22',demo=analyticsDemo(now);
  assert.deepEqual(validateBackup(demo),demo);assert.deepEqual(own,saved);
  assert.equal(Object.keys(demo.plans).filter(k=>k.startsWith('week:')).length,12);
  assert.ok(Object.keys(demo.dayLogs).every(d=>d<=now));
@@ -44,6 +44,16 @@ test('demo is a valid isolated 12-week workspace with varying correlated metrics
  assert.ok(summary.sleepCount>=24);assert.ok(summary.completed>0&&summary.completed<summary.planned);
  demo.habitEntries[addDays(now,-1)]['sample-water'].value=0;
  assert.deepEqual(own,saved);assert.ok(analyticsDemo(now).habitEntries[addDays(now,-1)]['sample-water'].value>0);
+});
+test('demo summary counts only available sleep records across every weekday',()=>{
+ for(let offset=0;offset<7;offset++){
+  const now=addDays('2026-11-16',offset),demo=analyticsDemo(now);
+  const summary=analyticsSummary(demo,{anchor:now,span:4,now});
+  assert.equal(summary.days.length,22+offset,now);
+  assert.equal(summary.sleepCount,21+offset,now);
+  assert.ok(summary.days.every(d=>d.date<=now),now);
+  assert.ok(Object.keys(demo.dayLogs).every(d=>d<=now),now);
+ }
 });
 test('entity icons survive edits, backup round-trip and clearing; unsupported icon markup is rejected',()=>{
  const s=seedState(),area=saveArea(s,{name:'Быт',icon:'home'}),p=saveProject(s,{name:'Ремонт кухни',areaId:area.id,icon:'tools'});

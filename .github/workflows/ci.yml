@@ -136,7 +136,8 @@ jobs:
         run: |
           useradd --create-home builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
-          runuser -u builder -- bash -c 'cd "$GITHUB_WORKSPACE" && npm ci && npm run native:build -- --debug --no-bundle --locked'
+          cd "$GITHUB_WORKSPACE"
+          runuser -u builder -- bash -c 'npm ci && npm run native:build -- --debug --no-bundle --locked'
       - name: Build package as an unprivileged user
         if: inputs.release
         run: |

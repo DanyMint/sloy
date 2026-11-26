@@ -70,7 +70,25 @@ function refreshHabits(){if(page==='today'){$('#today-view').innerHTML=todayHTML
 function showHabit(id='',preset=''){if(page!=='habits')return;openModal(habitForm(state.habits.find(h=>h.id===id)||{},preset));}
 function saveHabitForm(event){event.preventDefault();if(page!=='habits')return;try{saveHabit(state,{id:event.target.dataset.id,name:$('#habit-name').value,unit:$('#habit-unit').value,step:$('#habit-step').value,target:$('#habit-target').value,icon:$('#habit-form input[name="habit-icon"]:checked')?.value||''},today());persist();closeModal();refreshHabits();toast('Привычка сохранена');}catch(e){$('#habit-error').textContent=e.message;}}
 function saveHabitEntry(event){event.preventDefault();try{setHabitValue(state,event.target.dataset.id,habitDay(),$('#habit-amount').value);persist();closeModal();refreshHabits();toast('Результат дня сохранён');}catch(e){$('#habit-error').textContent=e.message;}}
-function saveDiary(event){if(event)event.preventDefault();if(!$('#diary-form'))return;const bed=$('#sleep-bed-datetime').value,fields={bedDate:bed?bed.slice(0,10):'',bedTime:bed?bed.slice(11,16):'',wakeTime:$('#sleep-wake-time').value,wellbeing:$('#diary-form input[name="wellbeing"]:checked')?.value??null,note:state.dayLogs[anchor]?.note||''};$('#sleep-duration').textContent=durationLabel(sleepMinutes(anchor,fields));try{saveDayLog(state,anchor,fields);persist();renderPeriodSelector();$('#diary-error').textContent='';}catch(e){$('#diary-error').textContent=e.message;}}
+function editDayField(key,update){
+ if(window.nativeSloy){window.nativeSloy.editDayField(key,update);return;}
+ update(state);persist();
+}
+function saveDiary(event){
+ if(event)event.preventDefault();
+ if(!$('#diary-form'))return;
+ const day=anchor,bed=$('#sleep-bed-datetime').value;
+ const sleep={bedDate:bed?bed.slice(0,10):'',bedTime:bed?bed.slice(11,16):'',wakeTime:$('#sleep-wake-time').value};
+ const wellbeing=$('#diary-form input[name="wellbeing"]:checked')?.value??null;
+ const changed=event?.target?.id;
+ const sleepChanged=changed==='sleep-bed-datetime'||changed==='sleep-wake-time';
+ const fields=!window.nativeSloy||changed==='diary-form'?{...sleep,wellbeing}:sleepChanged?sleep:{wellbeing};
+ $('#sleep-duration').textContent=durationLabel(sleepMinutes(day,sleep));
+ try{
+  editDayField(day+':'+(sleepChanged?'sleep':'wellbeing'),next=>saveDayLog(next,day,{...next.dayLogs[day],...fields}));
+  renderPeriodSelector();$('#diary-error').textContent='';
+ }catch(e){$('#diary-error').textContent=e.message;}
+}
 function showEntity(kind,id='',defaults={}){const entity=state[kind==='project'?'projects':'areas'].find(x=>x.id===id)||{};openModal(entityForm(state,kind,entity,defaults));}
 function saveEntity(event){event.preventDefault();const form=event.target,fields={id:form.dataset.id,name:$('#entity-name').value,icon:$('#entity-form input[name="entity-icon"]:checked')?.value||'',description:$('#entity-description').value,parentId:$('#entity-parent')?.value||null,areaId:$('#entity-area')?.value||null};try{const entity=form.dataset.kind==='project'?saveProject(state,fields):saveArea(state,fields);persist();closeModal();render();toast('Сохранено: '+entity.name);}catch(e){$('#entity-error').textContent=e.message;}}
 function confirmProjectAction(id,remove=false){
@@ -338,7 +356,7 @@ document.addEventListener('input',event=>{const {id,value}=event.target;
   else if(event.target.dataset.boardField&&kanbanDraft)kanbanDraft.fields[event.target.dataset.boardField]=event.target.checked;
   else if(id==='task-search'){search=value;renderTasks();}
   else if(id==='plan-goal'){getPlan(state,current()).goal=value;persist();}
-  else if(id==='reflection'){getPlan(state,current()).reflection=value;persist();}
+  else if(id==='reflection'){const p=current();editDayField(p.key+':reflection',next=>{getPlan(next,p).reflection=value;});}
 });
 document.addEventListener('change',event=>{const {id,value}=event.target;
   if(event.target.name==='weekly-source-view'){const next=normalizeWeeklyView(value);if(saveWeeklyView(next)){weeklyView=next;toast('Вид недельного списка сохранён');}else toast('Не удалось сохранить вид списка в этом браузере.');renderWeeklyViewSetting();}
@@ -347,7 +365,7 @@ document.addEventListener('change',event=>{const {id,value}=event.target;
   else if(event.target.dataset.boardField&&kanbanDraft)kanbanDraft.fields[event.target.dataset.boardField]=event.target.checked;
   else if(id==='edit-recurrence'){$('#repeat-custom-wrap').hidden=value!=='custom';$('#edit-repeat-every').disabled=value!=='custom';$('#edit-repeat-unit').disabled=value!=='custom';$('#repeat-from-wrap').hidden=value==='none';$('#repeat-missed-wrap').hidden=value==='none';$('#repeat-help').hidden=value==='none';}
   else if(id==='well-date'&&value)navigateDay(value);
-  else if(event.target.closest('#diary-form'))saveDiary();
+  else if(event.target.closest('#diary-form'))saveDiary(event);
   else if(id.startsWith('analytics-')){const key=id.replace('analytics-','');if(key==='date'&&!validDay(value))return;analyticsContext[key==='date'?'anchor':key]=key==='span'?Number(value):value;renderWellness();}
   else if(id==='entity-parent'){const p=state.projects.find(p=>p.id===value);$('#entity-area').disabled=!!p;if(p)$('#entity-area').value=p.areaId||'';}
   else if(id==='edit-project-id'){const p=state.projects.find(p=>p.id===value);$('#edit-area-id').disabled=!!p;if(p)$('#edit-area-id').value=projectArea(state,p)||'';}
@@ -361,9 +379,9 @@ modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.ge
 window.addEventListener('storage',event=>{if(event.key===STORAGE_KEY&&event.newValue){try{state=validateBackup(JSON.parse(event.newValue));closeModal();render();toast('Данные обновлены в другой вкладке');}catch{toast('Не удалось обновить данные из другой вкладки');}}});
 window.addEventListener('storage',event=>{if(event.key===WEEKLY_VIEW_KEY||event.key===null){weeklyView=event.key===null?readWeeklyView():normalizeWeeklyView(event.newValue);renderWeeklyViewSetting();if(page==='planner'&&type==='week')renderPlanner();}});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){const active=document.activeElement,menu=active?.closest('[data-weekly-menu],#task-filter-menu');if(menu?.open){menu.open=false;menu.querySelector('summary')?.focus();}else closeWeeklyMenus();}});
-enableTaskDragging({canDrop:(drag,target)=>target.hasAttribute('data-drop-plan')?page==='planner'&&['day','week'].includes(type)&&drag.source==='journal'&&!getPlan(state,current()).snapshot:page==='projects'&&scopeLayouts[entityId]==='kanban'&&drag.source==='kanban',onPlanDrop:id=>{if(addJournalTask(state,current(),id)){persist();render();toast('Задача в плане');}},onColumnDrop:(id,column,before)=>{const next=moveKanbanTask(state,id,column,today(),before,undefined,entityId);persist();render();if(next)toast('Следующий экземпляр — '+dateFormat(next.due));},onError:toast});
+enableTaskDragging({canDrop:(drag,target)=>target.hasAttribute('data-drop-plan')?page==='planner'&&['day','week'].includes(type)&&drag.source==='journal'&&!target.closest('[data-vault-readonly]')&&!getPlan(state,current()).snapshot:page==='projects'&&scopeLayouts[entityId]==='kanban'&&drag.source==='kanban',onPlanDrop:id=>{if(addJournalTask(state,current(),id)){persist();render();toast('Задача в плане');}},onColumnDrop:(id,column,before)=>{const next=moveKanbanTask(state,id,column,today(),before,undefined,entityId);persist();render();if(next)toast('Следующий экземпляр — '+dateFormat(next.due));},onError:toast});
 enableHabitHold(openHabitEntry);
-enableTaskSwipe({canComplete:id=>canSwipeTask(state,state.tasks.find(t=>t.id===id)),onComplete:id=>changeTaskDone(id,true)});
+enableTaskSwipe({canComplete:(id,row)=>!row.closest('[data-vault-readonly]')&&canSwipeTask(state,state.tasks.find(t=>t.id===id)),onComplete:id=>changeTaskDone(id,true)});
 render();
 if(!loadError)persist();
 if(loadError)toast('Сохранённые данные не удалось прочитать. Резервная копия поможет их восстановить.');

@@ -11,7 +11,7 @@ replace("function persist() {try {localStorage.setItem(STORAGE_KEY,JSON.stringif
 replace("normalizeState(state);if(materializeRepeats(state,today()))persist();renderSidebar();","normalizeState(state);renderSidebar();");
 replace(' restoreSections();\n}'," restoreSections();window.nativeSloy.rendered({page,type,anchor,state});\n}");
 replace("if(event.key===STORAGE_KEY&&event.newValue)","if(false&&event.key===STORAGE_KEY&&event.newValue)");
-replace("\nrender();","\nwindow.nativeSloy.bind({get:()=>state,set:next=>{state=next;render();},navigate:navigatePage,toast});\nrender();");
+replace("\nrender();","\nwindow.nativeSloy.bind({get:()=>state,set:(next,{refresh=true}={})=>{state=next;if(refresh)render();},navigate:navigatePage,toast});\nrender();");
 app=app.replace('materializeRepeats(state,today());persist();','persist();');
 await writeFile(new URL('app.js',out),app);
 let model=await readSource(new URL('model.js',out));model=model.replace("timeZone:'Asia/Aqtobe'","timeZone:window.nativeSloy?.settings?.folders?.timezone||'Asia/Aqtobe'");await writeFile(new URL('model.js',out),model);

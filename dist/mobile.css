@@ -130,6 +130,14 @@ html[data-mobile-menu-open],html[data-mobile-menu-open] body{overflow:hidden}
  .quarter-focus-scroll{padding-left:12px;padding-right:12px}
 }
 
+/* On touch screens, let the page scroll through every planning panel. */
+@media(max-width:680px),(max-width:900px) and (pointer:coarse){
+ #planner-view .board>.panel,.quarter-board>.panel,#plan-content{height:auto}
+ #planner-view .plan-task-list,#planner-view .live-panel #task-list,.quarter-catalog-scroll,.quarter-focus-scroll{
+  flex:none;max-height:none;overflow:visible;scrollbar-gutter:auto;overscroll-behavior-y:auto
+ }
+}
+
 /* Quarterly goals stay beside the weekly task plan, inside the existing scroll area. */
 #planner-view[data-view="week"] #task-list{padding:0 18px 12px}
 .weekly-focus-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 0 12px}

@@ -21,11 +21,11 @@
     "check": "npm run check:static && npm run check:tests"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.12.0",
-    "agnix": "0.60.1",
+    "@tauri-apps/cli": "^2.12.5",
+    "agnix": "0.61.0",
     "esbuild": "^0.28.2",
-    "oxfmt": "0.75.0",
-    "oxlint": "1.90.0",
+    "oxfmt": "0.79.0",
+    "oxlint": "1.94.0",
     "yaml": "^2.8.0"
   }
 }

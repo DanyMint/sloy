@@ -6,6 +6,7 @@ import {plannedDates,overdueTasks,addOverplan,dayStartPage} from '../dist/day-fl
 import {materializeRepeats,setTaskStatus,normalizeState} from '../dist/domain.js';
 import {saveHabit,setHabitValue} from '../dist/wellness.js';
 import {defaultBoard,applyBoard,moveKanbanTask,boardConfig} from '../dist/kanban.js';
+import {scopeHTML} from '../dist/workspace-v2.js';
 const empty=()=>{const s=seedState();s.plans={};for(const t of s.tasks){t.done=false;t.completedAt='';t.due='';}return s;};
 const counter=()=>{let i=0;return ()=> 'occurrence-'+(++i);};
 
@@ -61,4 +62,15 @@ test('unfinished overplan tasks appear in the next day overdue block without alt
 
 test('saving a skipped historical instance does not silently restore it',()=>{
  const s=empty();s.tasks=[s.tasks[0]];const t=s.tasks[0];Object.assign(t,{due:'2026-10-29',recurrence:'daily',repeatFrom:'due',repeatMissed:'replace'});materializeRepeats(s,'2026-10-30',counter());setTaskStatus(s,t.id,'todo','2026-10-30');assert.equal(t.skipped,true);assert.equal(t.archived,true);assert.deepEqual(validateBackup(clone(s)),s);
+});
+
+test('task selection surface wraps desktop lists and leaves touch lists and Kanban alone',()=>{
+ const state=empty(),entityId=state.tasks.find(task=>task.projectId).projectId;
+ const context={page:'projects',entityId};
+ const desktopTasks={selection:new Set(),modes:new Map()};
+ const desktop=scopeHTML(state,{...context,desktopTasks});
+ assert.match(desktop,/data-task-selection><details/);
+ assert.match(desktop,/data-drop-parent="[^"]+"[^>]*>[\s\S]*?data-task-drop-zone/);
+ assert.doesNotMatch(scopeHTML(state,context),/data-task-selection|data-drop-parent/);
+ assert.doesNotMatch(scopeHTML(state,{...context,desktopTasks,layout:'kanban'}),/data-task-selection|data-drop-parent/);
 });

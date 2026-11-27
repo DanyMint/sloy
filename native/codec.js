@@ -50,7 +50,7 @@ export function ruleOf(task){
  const r={daily:'every day',weekdays:'every weekday',weekly:'every week',monthly:'every month',yearly:'every year'}[task.recurrence]||'every '+(task.repeatEvery||1)+' '+(task.repeatUnit||'days');
  return r+(task.repeatFrom==='completion'?' when done':'');
 }
-const taskFields=['estimate','archived','cancelledAt','seriesId','nextOccurrenceId','previousOccurrenceId','repeatMissed','repeatAnchor','skipped','skippedAt','someday','kanbanColumnId','kanbanOrder'];
+const taskFields=['estimate','archived','cancelledAt','seriesId','nextOccurrenceId','previousOccurrenceId','repeatMissed','repeatAnchor','skipped','skippedAt','someday','kanbanColumnId','kanbanOrder','listOrder'];
 const indentation=line=>[...line.match(/^[ \t]*/)[0]].reduce((width,char)=>width+(char==='\t'?4-width%4:1),0);
 export function parseTasks(note,owner){
  const rows=[],stack=[],lines=note.body.split('\n');let fence=null;

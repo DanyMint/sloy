@@ -7,11 +7,11 @@ await mkdir(out,{recursive:true});await cp(new URL('dist/',root),out,{recursive:
 let app=await readSource(new URL('app.js',out));
 const replace=(old,value)=>{if(!app.includes(old))throw new Error('Native adapter anchor changed: '+old.slice(0,70));app=app.replace(old,value);};
 replace("try {const raw=localStorage.getItem(STORAGE_KEY);state=raw?validateBackup(JSON.parse(raw)):seedState();} catch {state=seedState();loadError=true;}","state=window.nativeSloy.state;");
-replace("function persist() {try {localStorage.setItem(STORAGE_KEY,JSON.stringify(state));return true;} catch {toast('Не удалось сохранить. Скачайте резервную копию.');return false;}}","function persist() {return window.nativeSloy.save(state);}");
-replace("normalizeState(state);if(materializeRepeats(state,today()))persist();renderSidebar();","normalizeState(state);renderSidebar();");
+replace("function saveState() {try {localStorage.setItem(STORAGE_KEY,JSON.stringify(state));return true;} catch {toast('Не удалось сохранить. Скачайте резервную копию.');return false;}}","function saveState() {return window.nativeSloy.save(state);}");
+replace("normalizeState(state);if(materializeRepeats(state,today()))persist({track:false});renderSidebar();","normalizeState(state);renderSidebar();");
 replace(' restoreSections();\n}'," restoreSections();window.nativeSloy.rendered({page,type,anchor,state});\n}");
 replace("if(event.key===STORAGE_KEY&&event.newValue)","if(false&&event.key===STORAGE_KEY&&event.newValue)");
-replace("\nrender();","\nwindow.nativeSloy.bind({get:()=>state,set:(next,{refresh=true}={})=>{state=next;if(refresh)render();},navigate:navigatePage,toast});\nrender();");
+replace("\nrender();","\nwindow.nativeSloy.bind({get:()=>state,set:(next,{refresh=true,reset=false}={})=>{state=next;undoHistory.rebase(state,{reset});if(refresh)render();},record:()=>undoHistory.record(state),navigate:navigatePage,toast});\nrender();");
 app=app.replace('materializeRepeats(state,today());persist();','persist();');
 await writeFile(new URL('app.js',out),app);
 let model=await readSource(new URL('model.js',out));model=model.replace("timeZone:'Asia/Aqtobe'","timeZone:window.nativeSloy?.settings?.folders?.timezone||'Asia/Aqtobe'");await writeFile(new URL('model.js',out),model);

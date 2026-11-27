@@ -28,7 +28,7 @@ Light and dark themes, responsive layouts, drag-and-drop planning, and swipe-to-
 | Version | Storage |
 | --- | --- |
 | **Native · Tauri 2** | Markdown in an Obsidian vault, with SQLite as a rebuildable local cache. Optional sync through a separately installed Syncthing client. |
-| **Browser** | Local browser storage, JSON backups, and manual Markdown import/export. No direct vault connection. |
+| **Browser** | Local browser storage, JSON backups, and manual Markdown export. No direct vault connection. |
 
 The native app preserves note prose and unknown YAML fields, checks for conflicting edits, and keeps recovery copies when writes cannot complete safely.
 

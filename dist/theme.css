@@ -43,7 +43,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .sidebar-bottom,.collection-footer{border-color:var(--line)}
 .local-dot,.saved>span{background:var(--green)}
 .eyebrow,.text-button{color:var(--accent-text)}
-.subtitle,.panel-heading p,.metric-label,.metric-desc,.task-meta,.plan-list-label,.plan-right,.capacity-row,.button-caption,.frozen-footer,.selected-indicator,.live-footer,.empty-state,.reflection-title,.no-extras,.form-label,.form-note,.modal-description,.help-step p,.download-card span,.file-upload,.snapshot-info,.muted-tag,.collection-breadcrumbs,.entity-card-category,.entity-description,.entity-card-stats,.entity-card-footer,.area-card-counts,.section-title>span,.scope-note,.quiet-empty,.table-date,.list-caption,.list-caption span,.collection-footer,.relation-path,.standalone-label{color:var(--secondary)}
+.subtitle,.panel-heading p,.metric-label,.metric-desc,.task-meta,.plan-list-label,.plan-right,.capacity-row,.button-caption,.frozen-footer,.selected-indicator,.live-footer,.empty-state,.reflection-title,.no-extras,.form-label,.form-note,.modal-description,.help-step p,.download-card span,.snapshot-info,.muted-tag,.collection-breadcrumbs,.entity-card-category,.entity-description,.entity-card-stats,.entity-card-footer,.area-card-counts,.section-title>span,.scope-note,.quiet-empty,.table-date,.list-caption,.list-caption span,.collection-footer,.relation-path,.standalone-label{color:var(--secondary)}
 .period-path,.period-path button{color:var(--secondary)}
 .period-path .current{color:var(--text)}
 .period-path button:hover,.collection-breadcrumbs button,.relation-path button,.relation-path button+button,.entity-edit,.subproject-list button,.subproject-list button span:last-child{color:var(--accent-text)}
@@ -97,7 +97,7 @@ dialog::backdrop{background:var(--backdrop)}
 .hint-box code,.help-step>b{background:var(--accent-soft)}
 .download-card,.export-source{background:var(--surface);border-color:var(--line)}
 .download-card:hover{background:var(--subtle);border-color:var(--accent-border)}
-.file-upload{background:var(--subtle);border-color:var(--accent-border)}
+
 .checkbox-label{color:var(--text)}
 .danger-button,.error-text,.cancel-action{color:var(--cancel)}
 .storage-warning{color:var(--cancel)!important}

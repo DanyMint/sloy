@@ -7,8 +7,7 @@ const invoke=(name,args={})=>window.__TAURI__.core.invoke(name,args),$=s=>docume
 let selectedTreeUri=null,settings,binding,engine,busy=false,connected=false,status='Настройте хранилище',lastContext,lastReport,synced=false;
 const date=()=>new Intl.DateTimeFormat('en-CA',{timeZone:settings?.folders.timezone||'Asia/Aqtobe',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const dayEdits=new Map();
-const dayFieldSelector='#reflection,#sleep-bed-datetime,#sleep-wake-time';
-const editingDayField=()=>document.activeElement?.matches(dayFieldSelector);
+const editingDayField=()=>document.activeElement?.matches('#reflection')||!!$('#sleep-editor:not([hidden])');
 function editDayField(key,update){
  const state=binding.get();
  update(state);
@@ -156,7 +155,7 @@ if(!connected){
 }
 await import('./app.js');
 function checkWhenIdle(){
- if(connected&&!document.hidden&&!$('#modal').open&&!document.activeElement?.matches('input,textarea,select'))check();
+ if(connected&&!document.hidden&&!editingDayField()&&!$('#modal').open&&!document.activeElement?.matches('input,textarea,select'))check();
 }
 window.addEventListener('focus',checkWhenIdle);
 document.addEventListener('visibilitychange',()=>{

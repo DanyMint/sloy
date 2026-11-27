@@ -1,3 +1,4 @@
+import {openSleepEditor,readTimeFormat,saveTimeFormat,sleepFieldsHTML} from './sleep-picker.js';
 import {WEEKLY_VIEW_KEY,normalizeWeeklyView,readWeeklyView,saveWeeklyView} from './planning-preferences.js';
 import {weeklyPlanningContext,weeklySourcesHTML,weeklyTaskRowHTML} from './weekly-planning.js';
 import {initVaultPicker} from './vault-picker.js';
@@ -29,6 +30,7 @@ const query=new URLSearchParams(location.search);
 let type=['day','week','quarter','year'].includes(query.get('view'))?query.get('view'):query.get('view')==='month'?'quarter':'day';
 if(query.get('page')==='diary')type='day';
 let anchor=/^\d{4}-\d{2}-\d{2}$/.test(query.get('date')||'')&&!Number.isNaN(dateOf(query.get('date')).getTime())?query.get('date'):today();
+let timeFormat=readTimeFormat();
 let weeklyView=readWeeklyView(),weeklyScope='all';
 let search='',filter='all',toastTimer,editingId=null;
 let page=['today','planner','zones','projects','areas','habits','analytics','settings'].includes(query.get('page'))?query.get('page'):'planner',entityId=query.get('entity')||'';
@@ -56,11 +58,12 @@ function render(){
  document.title=({today:'Сегодня',planner:'Journal',zones:'Зоны и проекты',projects:'Проект',areas:'Зона',habits:'Привычки',analytics:'Аналитика',settings:'Настройки'}[page])+' — Sloy';
  if(page==='today')$('#today-view').innerHTML=todayHTML(state);
  else if(page==='planner')renderPlanner();
- else if(page==='settings'){$('#obsidian-vault-path').value=state.vaultPath||'';renderWeeklyViewSetting();}
+ else if(page==='settings'){$('#obsidian-vault-path').value=state.vaultPath||'';renderWeeklyViewSetting();renderTimeFormat();}
  else if(wellnessPage())renderWellness();
  else if(['projects','areas'].includes(page))$('#collection-view').innerHTML=scopeHTML(state,collectionContext());
  restoreSections();
 }
+function renderTimeFormat(){document.querySelectorAll('input[name="time-format"]').forEach(input=>input.checked=input.value===timeFormat);}
 function renderWeeklyViewSetting(){document.querySelectorAll('input[name="weekly-source-view"]').forEach(input=>input.checked=input.value===weeklyView);}
 function renderWellness(){const scroll=window.scrollY,scroller=$('.habit-week-scroller'),left=scroller?.scrollLeft||0;$('#wellness-view').innerHTML=page==='habits'?habitWeekHTML(state,logDate,{archiveOpen:habitArchiveOpen}):analyticsHTML(state,analyticsContext);const next=$('.habit-week-scroller');if(next)next.scrollLeft=left;restoreSections();window.scrollTo(0,scroll);}
 function navigateDay(day){if(!validDay(day))return;if(page==='planner'){navigate(type,day);return;}logDate=day;history.replaceState(null,'','?page='+page+'&date='+day);renderWellness();}
@@ -77,18 +80,25 @@ function editDayField(key,update){
 function saveDiary(event){
  if(event)event.preventDefault();
  if(!$('#diary-form'))return;
- const day=anchor,bed=$('#sleep-bed-datetime').value;
- const sleep={bedDate:bed?bed.slice(0,10):'',bedTime:bed?bed.slice(11,16):'',wakeTime:$('#sleep-wake-time').value};
- const wellbeing=$('#diary-form input[name="wellbeing"]:checked')?.value??null;
- const changed=event?.target?.id;
- const sleepChanged=changed==='sleep-bed-datetime'||changed==='sleep-wake-time';
- const fields=!window.nativeSloy||changed==='diary-form'?{...sleep,wellbeing}:sleepChanged?sleep:{wellbeing};
- $('#sleep-duration').textContent=durationLabel(sleepMinutes(day,sleep));
+ const day=anchor,wellbeing=$('#diary-form input[name="wellbeing"]:checked')?.value??null;
  try{
-  editDayField(day+':'+(sleepChanged?'sleep':'wellbeing'),next=>saveDayLog(next,day,{...next.dayLogs[day],...fields}));
+  editDayField(day+':wellbeing',next=>saveDayLog(next,day,{...next.dayLogs[day],wellbeing}));
   renderPeriodSelector();$('#diary-error').textContent='';
  }catch(e){$('#diary-error').textContent=e.message;}
 }
+document.addEventListener('click',event=>{
+ const button=event.target.closest('[data-sleep-time]');
+ if(!button)return;
+ const day=anchor;
+ openSleepEditor(button,{day,log:state.dayLogs[day]||{},format:timeFormat,save:fields=>{
+  editDayField(day+':sleep',next=>saveDayLog(next,day,{...next.dayLogs[day],...fields}));
+  const log=state.dayLogs[day];
+  $('#sleep-fields').innerHTML=sleepFieldsHTML(log,day,timeFormat);
+  $('#sleep-duration').textContent=durationLabel(sleepMinutes(day,log));
+  $('#diary-error').textContent='';
+  renderPeriodSelector();$(`[data-sleep-time="${button.dataset.sleepTime}"]`).focus();
+ }});
+});
 function showEntity(kind,id='',defaults={}){const entity=state[kind==='project'?'projects':'areas'].find(x=>x.id===id)||{};openModal(entityForm(state,kind,entity,defaults));}
 function saveEntity(event){event.preventDefault();const form=event.target,fields={id:form.dataset.id,name:$('#entity-name').value,icon:$('#entity-form input[name="entity-icon"]:checked')?.value||'',description:$('#entity-description').value,parentId:$('#entity-parent')?.value||null,areaId:$('#entity-area')?.value||null};try{const entity=form.dataset.kind==='project'?saveProject(state,fields):saveArea(state,fields);persist();closeModal();render();toast('Сохранено: '+entity.name);}catch(e){$('#entity-error').textContent=e.message;}}
 function confirmProjectAction(id,remove=false){
@@ -159,7 +169,7 @@ function renderPlanner() {
   $('#live-footnote').textContent=frozen?'Состав плана зафиксирован':'Нажмите +, чтобы включить в план';
   renderTasks();$('#task-list').scrollTop=liveScroll;$('#plan-task-list').scrollTop=planScroll;
   const dayExtras=[...c.extras,...(plan.overplan||[]).map(id=>state.tasks.find(t=>t.id===id)).filter(t=>t&&!c.extras.some(e=>e.id===t.id))];
-  $('#reflection-section').innerHTML=type==='day'?'<section class="reflection-section" aria-label="Итоги и рефлексия"><div><div class="reflection-title"><span>↳</span> Вне плана <span class="count">'+dayExtras.length+'</span></div>'+(dayExtras.length?'<div class="extra-items">'+dayExtras.map(t=>'<div class="extra-item"><span>'+(t.done?'✓':'○')+'</span>'+esc(t.title)+'<span class="muted-tag">'+(t.done?(t.completedAt?dateFormat(t.completedAt):'Выполнена без даты'):t.skipped?'Пропущена':t.cancelled?'Отменена':'Не выполнена')+'</span></div>').join('')+'</div>':'<div class="no-extras">Здесь появятся задачи, выполненные в этом периоде<br>и не включённые в исходный план.</div>')+'</div><div class="day-reflection"><div class="reflection-title"><span>✎</span> Что беру с собой дальше</div><textarea id="reflection" aria-label="Что беру с собой дальше" maxlength="20000" placeholder="Что получилось? Что перенести? Что изменить?">'+esc(plan.reflection)+'</textarea>'+plannerDiaryHTML(state,anchor)+'</div></section>':'';
+  $('#reflection-section').innerHTML=type==='day'?'<section class="reflection-section" aria-label="Итоги и рефлексия"><div><div class="reflection-title"><span>↳</span> Вне плана <span class="count">'+dayExtras.length+'</span></div>'+(dayExtras.length?'<div class="extra-items">'+dayExtras.map(t=>'<div class="extra-item"><span>'+(t.done?'✓':'○')+'</span>'+esc(t.title)+'<span class="muted-tag">'+(t.done?(t.completedAt?dateFormat(t.completedAt):'Выполнена без даты'):t.skipped?'Пропущена':t.cancelled?'Отменена':'Не выполнена')+'</span></div>').join('')+'</div>':'<div class="no-extras">Здесь появятся задачи, выполненные в этом периоде<br>и не включённые в исходный план.</div>')+'</div><div class="day-reflection"><div class="reflection-title"><span>✎</span> Что беру с собой дальше</div><textarea id="reflection" aria-label="Что беру с собой дальше" maxlength="20000" placeholder="Что получилось? Что перенести? Что изменить?">'+esc(plan.reflection)+'</textarea>'+plannerDiaryHTML(state,anchor,timeFormat)+'</div></section>':'';
   $('#period-chart').innerHTML=taskChartHTML(c,frozen);
   $('.journal-stats-heading h2').textContent=type==='day'?'Итоги дня':type==='week'?'Итоги недели':'Итоги квартала';
   $('.journal-stats-heading>span').textContent=frozen?'По зафиксированному плану':'По текущему черновику';
@@ -340,13 +350,14 @@ document.addEventListener('input',event=>{const {id,value}=event.target;
   else if(id==='reflection'){const p=current();editDayField(p.key+':reflection',next=>{getPlan(next,p).reflection=value;});}
 });
 document.addEventListener('change',event=>{const {id,value}=event.target;
-  if(event.target.name==='weekly-source-view'){const next=normalizeWeeklyView(value);if(saveWeeklyView(next)){weeklyView=next;toast('Вид недельного списка сохранён');}else toast('Не удалось сохранить вид списка в этом браузере.');renderWeeklyViewSetting();}
+  if(event.target.name==='time-format'){if(saveTimeFormat(value))timeFormat=value;else toast('Не удалось сохранить формат времени.');renderTimeFormat();}
+  else if(event.target.name==='weekly-source-view'){const next=normalizeWeeklyView(value);if(saveWeeklyView(next)){weeklyView=next;toast('Вид недельного списка сохранён');}else toast('Не удалось сохранить вид списка в этом браузере.');renderWeeklyViewSetting();}
   else if(event.target.dataset.kanbanMove){try{const next=moveKanbanTask(state,event.target.dataset.kanbanMove,value,today(),null,undefined,entityId);persist();render();toast(next?'Выполнено. Следующий экземпляр — '+dateFormat(next.due):'Карточка перемещена');}catch(e){toast(e.message);}}
   else if(event.target.dataset.columnField&&kanbanDraft){kanbanDraft.columns[Number(event.target.closest('[data-column-index]').dataset.columnIndex)][event.target.dataset.columnField]=value;}
   else if(event.target.dataset.boardField&&kanbanDraft)kanbanDraft.fields[event.target.dataset.boardField]=event.target.checked;
   else if(id==='edit-recurrence'){$('#repeat-custom-wrap').hidden=value!=='custom';$('#edit-repeat-every').disabled=value!=='custom';$('#edit-repeat-unit').disabled=value!=='custom';$('#repeat-from-wrap').hidden=value==='none';$('#repeat-missed-wrap').hidden=value==='none';$('#repeat-help').hidden=value==='none';}
   else if(id==='well-date'&&value)navigateDay(value);
-  else if(event.target.closest('#diary-form'))saveDiary(event);
+  else if(event.target.name==='wellbeing'&&event.target.closest('#diary-form'))saveDiary(event);
   else if(id.startsWith('analytics-')){const key=id.replace('analytics-','');if(key==='date'&&!validDay(value))return;analyticsContext[key==='date'?'anchor':key]=key==='span'?Number(value):value;renderWellness();}
   else if(id==='entity-parent'){const p=state.projects.find(p=>p.id===value);$('#entity-area').disabled=!!p;if(p)$('#entity-area').value=p.areaId||'';}
   else if(id==='edit-project-id'){const p=state.projects.find(p=>p.id===value);$('#edit-area-id').disabled=!!p;if(p)$('#edit-area-id').value=projectArea(state,p)||'';}

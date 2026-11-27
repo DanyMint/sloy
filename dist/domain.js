@@ -96,6 +96,28 @@ export function attachTask(state,task,projectId=null,areaId=null){
   else{if(areaId&&!state.areas.some(a=>a.id===areaId))throw new Error('Зона не найдена.');task.projectId=null;task.project='Входящие';task.areaId=areaId||null;}
   return task;
 }
+export function compareTaskListOrder(a,b){
+ return (a.listOrder??Infinity)-(b.listOrder??Infinity)||0;
+}
+export function rememberTaskListOrder(state,task){
+ // Vault saves can relocate Markdown blocks. Record the visible order before changing their parent.
+ const scope=state.tasks.filter(item=>(item.projectId||null)===(task.projectId||null)&&(item.projectId||(item.areaId||null)===(task.areaId||null))).sort(compareTaskListOrder);
+ scope.forEach((item,index)=>{item.listOrder=index;});
+ return scope.length;
+}
+export function reorderTaskList(state,siblingIds,ids,targetId,after){
+ const moving=new Set(ids),remaining=siblingIds.filter(id=>!moving.has(id));
+ const index=remaining.indexOf(targetId);
+ if(index<0||!ids.length||ids.some(id=>!siblingIds.includes(id)))return false;
+ const next=[...remaining];
+ next.splice(index+Number(after),0,...ids);
+ if(next.every((id,position)=>id===siblingIds[position]))return false;
+ const tasks=new Map(state.tasks.map(task=>[task.id,task]));
+ rememberTaskListOrder(state,tasks.get(targetId));
+ const slots=siblingIds.map(id=>tasks.get(id).listOrder).sort((a,b)=>a-b);
+ next.forEach((id,position)=>{tasks.get(id).listOrder=slots[position];});
+ return true;
+}
 export function setTaskParent(state,task,kind,id){
   const index=new Map(state.tasks.map(item=>[item.id,item]));
   if(kind==='task'){
@@ -162,6 +184,7 @@ export function materializeRepeats(state,day,idFactory=newId){
   t.seriesId||=t.id;
   const next={...t,id,blockId:'kt-'+id.replace(/[^a-zA-Z0-9-]/g,''),due,repeatAnchor:t.repeatAnchor||t.due,done:false,cancelled:false,skipped:false,skippedAt:'',completedAt:'',cancelledAt:'',archived:false,nextOccurrenceId:null,previousOccurrenceId:t.id,kanbanColumnId:null};
   delete next.kanbanOrder;
+  delete next.listOrder;
   t.nextOccurrenceId=id;state.tasks.push(next);created++;
   if(t.repeatMissed==='replace')for(const old of state.tasks){if(old.id!==id&&(old.seriesId||old.id)===t.seriesId&&!old.done&&!old.cancelled&&!old.archived&&old.due<due){old.skipped=true;old.skippedAt=due;old.archived=true;}}
  }

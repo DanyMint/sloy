@@ -127,6 +127,7 @@ export function validateBackup(input) {
   const dateOk=d=>typeof d==='string'&&(!d||/^\d{4}-\d{2}-\d{2}$/.test(d)&&!Number.isNaN(dateOf(d).getTime())&&iso(dateOf(d))===d);
   const ids=new Set();
   for(const t of input.tasks) {if(typeof t.id!=='string'||ids.has(t.id)||typeof t.title!=='string'||!t.title.trim()||typeof t.project!=='string'||typeof t.source!=='string'||typeof t.blockId!=='string'||!dateOk(t.due)||!dateOk(t.completedAt)||typeof t.done!=='boolean'||!Number.isFinite(t.estimate)||t.estimate<0) throw new Error('Некорректная задача в резервной копии.'); ids.add(t.id);}
+  if(input.tasks.some(task=>task.listOrder!==undefined&&(!Number.isSafeInteger(task.listOrder)||task.listOrder<0)))throw new Error('Некорректный порядок задач.');
   const taskIndex=new Map(input.tasks.map(task=>[task.id,task]));
   for(const task of input.tasks)if(task.parentTaskId!=null){
     if(typeof task.parentTaskId!=='string'||!task.parentTaskId)throw new Error('Некорректная родительская задача.');

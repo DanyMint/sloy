@@ -2,7 +2,7 @@ import {test} from 'node:test';import assert from 'node:assert/strict';
 import {decodeVault,encodeVault,finalizeKnowledge,parseRule,ruleOf,emptyState} from '../codec.js';
 import {VaultEngine} from '../engine.js';
 import {validateBackup,comparison,freezePlan,period,getPlan} from '../../dist/model.js';
-import {setTaskParent,setTaskStatus} from '../../dist/domain.js';
+import {setTaskParent,setTaskStatus,compareTaskListOrder,rememberTaskListOrder,reorderTaskList} from '../../dist/domain.js';
 const document=(path,text)=>({path,text,hash:'hash-'+path});
 const fixture=()=>[
  document('Areas/Work.md','---\nsloy_type: area\nsloy_id: work\nname: Работа\ncustom: keep-me\n---\n# Работа\n\nСвободный текст.\n'),
@@ -71,4 +71,47 @@ test('subtasks inherit ownership, reject cycles and keep independent completion 
  assert.equal(child.done,false);
  setTaskParent(state,child,'project','root');
  assert.equal(comparison(state,planPeriod).hours,2);
+});
+
+test('list order survives vault rewrites that append a restored task to its note',()=>{
+ const docs=fixture(),note=docs.find(item=>item.path==='Projects/Child.md');
+ note.text+='\n- [ ] First [sloy_id:: first] ^first\n- [ ] Middle [sloy_id:: middle] ^middle\n- [ ] Last [sloy_id:: last] ^last\n';
+ let files=docs,decoded=decodeVault(files);
+ const save=state=>{
+  files=apply(files,encodeVault(state,decoded));
+  decoded=decodeVault(files);
+ };
+ const ids=['first','middle','last'];
+ const ordered=()=>decoded.state.tasks.filter(task=>ids.includes(task.id)).sort(compareTaskListOrder).map(task=>task.id);
+ const draft=structuredClone(decoded.state),middle=draft.tasks.find(task=>task.id==='middle');
+ const lastRank=rememberTaskListOrder(draft,middle),originalRank=middle.listOrder;
+ setTaskParent(draft,middle,'task','last');
+ middle.listOrder=lastRank;
+ save(draft);
+ const restored=structuredClone(decoded.state),restoredMiddle=restored.tasks.find(task=>task.id==='middle');
+ setTaskParent(restored,restoredMiddle,'project','child');
+ restoredMiddle.listOrder=originalRank;
+ save(restored);
+ assert.deepEqual(ordered(),ids);
+ assert.equal(decoded.state.tasks.at(-1).id,'middle');
+ const reordered=structuredClone(decoded.state);
+ assert.equal(reorderTaskList(reordered,ids,['last'],'first',false),true);
+ save(reordered);
+ assert.deepEqual(ordered(),['last','first','middle']);
+ assert.match(files.find(item=>item.path===note.path).text,/Свободный текст после/);
+});
+
+test('moving a nested task directly to an area carries its subtree into the area note',()=>{
+ const docs=fixture(),note=docs.find(item=>item.path==='Projects/Child.md');
+ note.text+='\n- [ ] Parent [sloy_id:: parent] ^parent\n    - [ ] Branch [sloy_id:: branch] ^branch\n        - [ ] Leaf [sloy_id:: leaf] ^leaf\n';
+ const decoded=decodeVault(docs),draft=structuredClone(decoded.state);
+ setTaskParent(draft,draft.tasks.find(task=>task.id==='branch'),'area','work');
+ const next=decodeVault(apply(docs,encodeVault(draft,decoded))).state;
+ const branch=next.tasks.find(task=>task.id==='branch'),leaf=next.tasks.find(task=>task.id==='leaf');
+ assert.equal(branch.parentTaskId,undefined);
+ assert.equal(branch.projectId,null);
+ assert.equal(branch.source,'Areas/Work.md');
+ assert.equal(leaf.parentTaskId,'branch');
+ assert.equal(leaf.source,branch.source);
+ assert.equal(next.tasks.find(task=>task.id==='parent').projectId,'child');
 });

@@ -1,3 +1,4 @@
+import {createUndoHistory} from './undo-history.js';
 import {taskAncestors} from './task-hierarchy.js';
 import {initTaskEditor} from './task-editor.js';
 import {openSleepEditor,readTimeFormat,saveTimeFormat,sleepFieldsHTML} from './sleep-picker.js';
@@ -18,7 +19,7 @@ import {journalPlan as getPlan,freezeJournal as freezePlan,weeklyTasks,selectJou
 import {focusPlannerHTML,focusCount,yearStatsHTML,quarterStatsHTML,taskChartHTML} from './journal-pages.js';
 import {saveHabit,deleteHabit,setHabitValue,incrementHabit,saveDayLog,sleepMinutes,durationLabel,validDay} from './wellness.js';
 import {diaryWeekHTML,adjacentPeriodsHTML,plannerDiaryHTML,habitForm,habitDeleteConfirmation,habitEntryForm,analyticsHTML} from './wellness-pages.js';
-import {normalizeState,newId,saveArea,saveProject,setTaskParent,setTaskStatus,projectArea,materializeRepeats,isTaskActive,setProjectArchived,deleteProject,setProjectCompleted,isProjectAvailable} from './domain.js';
+import {normalizeState,newId,saveArea,saveProject,setTaskParent,setTaskStatus,projectArea,materializeRepeats,isTaskActive,setProjectArchived,deleteProject,setProjectCompleted,isProjectAvailable,rememberTaskListOrder,reorderTaskList} from './domain.js';
 import {entityForm,taskForm,statusBadge,subtasksHTML} from './pages.js';
 import {STORAGE_KEY,clone,today,dateOf,addDays,period,shiftPeriod,comparison,tasksMarkdown,planMarkdown,validateBackup,seedState} from './model.js';
 const $=s=>document.querySelector(s);
@@ -47,8 +48,8 @@ let kanbanDraft=null;
 try{if(localStorage.getItem('kontur-tasks-view')==='kanban')collectionViews.tasks='kanban';}catch{}
 try{for(const key of Object.keys(collectionViews))if(localStorage.getItem('kontur-'+key+'-view')==='list')collectionViews[key]='list';}catch{}
 const desktopTasks={selection:new Set(),modes:new Map()};
-const desktopPointer=matchMedia('(pointer: fine)');
-let taskMoveUndo=null;
+const desktopPointer=matchMedia('(any-pointer: fine)');
+const undoHistory=createUndoHistory();
 const collectionContext=()=>({page,entityId,layout:scopeLayouts[entityId]||'table',desktopTasks:desktopPointer.matches?desktopTasks:null});
 function navigatePage(next,id=''){desktopTasks.selection.clear();mobileShell.close();page=next;entityId=id;history.replaceState(null,'','?page='+page+(id?'&entity='+encodeURIComponent(id):'')+'&view='+type+'&date='+(page==='habits'?logDate:page==='analytics'?analyticsContext.anchor:anchor));render();window.scrollTo({top:0,behavior:'instant'});}
 function renderSidebar(){
@@ -58,7 +59,7 @@ function renderSidebar(){
 }
 function restoreSections(){document.querySelectorAll('[data-collapse-key]').forEach(e=>{if(Object.hasOwn(collapsedSections,e.dataset.collapseKey))e.open=collapsedSections[e.dataset.collapseKey];});}
 function render(){
- normalizeState(state);if(materializeRepeats(state,today()))persist();renderSidebar();
+ normalizeState(state);if(materializeRepeats(state,today()))persist({track:false});renderSidebar();
  $('#settings-view').hidden=page!=='settings';$('#zones-view').hidden=page!=='zones';$('#today-view').hidden=page!=='today';$('#planner-view').hidden=page!=='planner';$('#collection-view').hidden=!['projects','areas'].includes(page);$('#wellness-view').hidden=!wellnessPage();
  document.title=({today:'Сегодня',planner:'Journal',zones:'Зоны и проекты',projects:'Проект',areas:'Зона',habits:'Привычки',analytics:'Аналитика',settings:'Настройки'}[page])+' — Sloy';
  if(page==='today')$('#today-view').innerHTML=todayHTML(state);
@@ -115,8 +116,27 @@ function confirmProjectAction(id,remove=false){
 const modal=$('#modal');
 const dateFormat=(date,options={day:'numeric',month:'short'})=>dateOf(date).toLocaleDateString('ru-RU',{...options,timeZone:'UTC'}).replace(/ г\.$/,'');
 const number=n=>Number(n||0).toLocaleString('ru-RU');
-function persist() {try {localStorage.setItem(STORAGE_KEY,JSON.stringify(state));return true;} catch {toast('Не удалось сохранить. Скачайте резервную копию.');return false;}}
-function toast(message) {clearTimeout(toastTimer);$('#toast').textContent=message;$('#toast').classList.add('show');toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),4200);}
+function persist(options) {
+ if(!saveState())return false;
+ undoHistory.record(state,options);
+ return true;
+}
+function saveState() {try {localStorage.setItem(STORAGE_KEY,JSON.stringify(state));return true;} catch {toast('Не удалось сохранить. Скачайте резервную копию.');return false;}}
+function toast(message,undo=false) {
+ clearTimeout(toastTimer);
+ const notice=$('#toast');
+ notice.textContent=message;
+ if(undo){
+  const button=document.createElement('button');
+  button.type='button';
+  button.dataset.action='undo-task-move';
+  button.textContent='Отменить';
+  button.title='Ctrl+Z';
+  notice.append(button);
+ }
+ notice.classList.add('show');
+ toastTimer=setTimeout(()=>{notice.classList.remove('show');notice.querySelector('button')?.remove();},undo?8000:4200);
+}
 function current() {return period(type,anchor);}
 function navigate(nextType,nextAnchor=anchor) {mobileShell.close();page='planner';entityId='';type=nextType;anchor=nextAnchor;logDate=nextAnchor;search='';filter='all';weeklyScope='all';$('#task-search').value='';$('#task-filter').value='all';history.replaceState(null,'','?view='+type+'&date='+anchor);render();}
 function showPeriodJump(){openModal('<h2>Выбрать период</h2><form id="period-jump-form"><label class="form-label" for="jump-date">Дата</label><input class="field" id="jump-date" type="date" required value="'+anchor+'"><div class="modal-actions"><button type="button" class="secondary-button" data-action="close-modal">Отмена</button><button class="primary-button" type="submit">Перейти</button></div></form>');}
@@ -278,20 +298,11 @@ function backup(){download('sloy-backup-'+today()+'.json',JSON.stringify(state,n
 function showExport(){const sources=[...new Set(state.tasks.filter(t=>!t.archived).map(t=>t.source))];openModal('<h2>Сохранить в Obsidian</h2><p class="modal-description">План хранит исходные формулировки и ссылки на живые задачи. Задачи остаются в своих файлах — без дублирования чекбоксов в плане.</p><div class="download-grid"><button class="download-card" data-action="download-plan"><strong>↗ План и факт периода · .md</strong><span>Фокус, фиксированный список, таблица факта и рефлексия</span></button></div><label class="form-label">Живые задачи по файлам</label>'+sources.map(source=>'<div class="export-source"><span>'+esc(source)+'</span><button class="text-button" data-action="download-tasks" data-source="'+esc(source)+'">Скачать .md ↗</button></div>').join('')+Object.entries(state.plans).filter(([k,p])=>k.startsWith('month:')||p.legacyPlan).map(([k])=>'<div class="export-source"><span>Прежний план '+esc(k)+'</span><button class="text-button" data-action="download-legacy" data-key="'+esc(k)+'">Скачать .md ↗</button></div>').join('')+'<div class="form-note">Сохраните каждый файл по указанному пути в хранилище. В строках появятся <b>^ID</b> — они нужны для ссылок. Перед заменой существующего файла сохраните другие заметки в нём: экспорт содержит только задачи.</div><div class="modal-actions"><button class="secondary-button" data-action="backup">Резервная копия JSON</button><button class="primary-button" data-action="close-modal">Готово</button></div>');}
 function showHelp(){openModal('<h2>Намерение + живая реальность</h2><p class="modal-description">Journal: год, квартал, неделя и день.</p><div class="help-step"><b>1</b><div><strong>Один список задач</strong><p>Год — крупные проекты в зонах. Квартал — годовые проекты или их подпроекты. Неделя — конкретные действия для квартальных целей. День — задачи из плана этой недели. Статусы задач общие.</p></div></div><div class="help-step"><b>2</b><div><strong>Зафиксируйте план</strong><p>Выберите фокус или задачи кнопкой +. Фиксация сохраняет первоначальный выбор и формулировки. На странице дня отмечайте выполнение, привычки, самочувствие и сон.</p></div></div><div class="help-step"><b>3</b><div><strong>Работайте с живыми задачами</strong><p>Меняйте названия и отмечайте выполнение. План покажет изменения. В итог попадают выполнения с датой внутри периода; работа вне плана видна отдельно.</p></div></div><div class="help-step"><b>4</b><div><strong>Завершите период</strong><p>Планирование находится в начале страницы, статистика — в конце. На дне можно записать выводы. Экспорт Markdown сохраняет фокус и исходный план со ссылками на задачи.</p></div></div><div class="hint-box">Это ручной обмен файлами, без доступа к вашему хранилищу. Данные сохраняются в браузере на этом устройстве. Резервную копию можно скачать в формате JSON.</div><label class="form-label" for="vault-name">Имя хранилища Obsidian (для открытия задач)</label><input class="field" id="vault-name" value="'+esc(state.vault||'')+'" placeholder="Например: Мой мозг"><div class="form-note">После экспорта откройте задачу в редакторе: там появится ссылка «Открыть в Obsidian».</div><div class="modal-actions"><button class="primary-button" data-action="save-settings">Понятно</button></div>');}
 document.addEventListener('click',event=>{
- const row=event.target.closest('[data-drop-parent]');
- if(!row||!desktopPointer.matches||(!event.ctrlKey&&!event.metaKey)||event.target.closest('.task-check,[data-action="cycle-scope-subtasks"]'))return;
- event.preventDefault();
- event.stopImmediatePropagation();
- const id=row.dataset.dropParent,selection=desktopTasks.selection;
- if(selection.has(id))selection.delete(id);else selection.add(id);
- row.draggable=selection.has(id);
- row.classList.toggle('is-task-selected',selection.has(id));
-},true);
-document.addEventListener('click',event=>{
   closeWeeklyMenus(event.target.closest('[data-weekly-menu],#task-filter-menu'));
   const tree=event.target.closest('[data-tree-open]');if(tree){clearTimeout(treeClickTimer);if(event.detail===0||matchMedia('(max-width:680px)').matches)navigatePage(tree.dataset.treeOpen==='area'?'areas':'projects',tree.dataset.id);else if(event.detail===1)treeClickTimer=setTimeout(()=>navigatePage(tree.dataset.treeOpen==='area'?'areas':'projects',tree.dataset.id),320);return;}
   const button=event.target.closest('[data-action]');if(!button||button.disabled)return;const action=button.dataset.action,id=button.dataset.id;
   if(action==='page'){if(button.dataset.page==='today')navigatePage('today');else navigatePage(button.dataset.page);}
+  else if(action==='undo-task-move')undoChange();
   else if(action==='cycle-scope-subtasks'){
    desktopTasks.selection.clear();
    desktopTasks.modes.set(id,((desktopTasks.modes.get(id)||0)+1)%3);
@@ -378,12 +389,12 @@ document.addEventListener('click',event=>{
   else if(action==='download-tasks'){download(button.dataset.source.split('/').pop(),tasksMarkdown(state,button.dataset.source));toast('Задачи скачаны со стабильными ID');}
   else if(action==='backup')backup();
   else if(action==='help')showHelp();
-  else if(action==='save-settings'){state.vault=$('#vault-name').value.trim();persist();closeModal();}
+  else if(action==='save-settings'){state.vault=$('#vault-name').value.trim();persist({track:false});closeModal();}
   else if(action==='clear-demo')openModal('<h2>Начать со своих задач</h2><p class="modal-description">Пространство будет очищено: задачи, планы, привычки и дневник. Перед этим можно скачать резервную копию. Вы сможете собрать план с нуля.</p><div class="modal-actions"><button class="secondary-button" data-action="close-modal">Отмена</button><button class="primary-button" data-action="confirm-clear">Начать с чистого листа</button></div>');
   else if(action==='confirm-clear'){state=normalizeState({version:1,demo:false,tasks:[],plans:{},vault:state.vault||'',vaultPath:state.vaultPath||''});persist();closeModal();render();toast('Чистое пространство готово');}
 });
 document.addEventListener('toggle',event=>{if(event.target.id==='habit-archive')habitArchiveOpen=event.target.open;if(event.target.dataset.collapseKey)collapsedSections[event.target.dataset.collapseKey]=event.target.open;},true);
-document.addEventListener('submit',event=>{if(event.target.id==='obsidian-settings-form'){event.preventDefault();state.vaultPath=$('#obsidian-vault-path').value.trim();if(persist()){$('#obsidian-vault-selection').textContent='';toast('Путь к хранилищу сохранён');}}else if(event.target.id==='repeat-settings-form')saveRepeat(event);else if(event.target.id==='kanban-settings-form'){event.preventDefault();try{applyBoard(state,kanbanDraft,entityId);persist();closeModal();render();toast('Доска сохранена');}catch(e){$('#kanban-error').textContent=e.message;}}else if(event.target.id==='period-jump-form'){event.preventDefault();const day=$('#jump-date').value;if(validDay(day)){closeModal();navigate(type,day);}}else if(event.target.id==='habit-form')saveHabitForm(event);else if(event.target.id==='habit-entry-form')saveHabitEntry(event);else if(event.target.id==='diary-form')saveDiary(event);else if(event.target.id==='task-form')saveTask(event);else if(event.target.id==='entity-form')saveEntity(event);});
+document.addEventListener('submit',event=>{if(event.target.id==='obsidian-settings-form'){event.preventDefault();state.vaultPath=$('#obsidian-vault-path').value.trim();if(persist({track:false})){$('#obsidian-vault-selection').textContent='';toast('Путь к хранилищу сохранён');}}else if(event.target.id==='repeat-settings-form')saveRepeat(event);else if(event.target.id==='kanban-settings-form'){event.preventDefault();try{applyBoard(state,kanbanDraft,entityId);persist({track:false});closeModal();render();toast('Доска сохранена');}catch(e){$('#kanban-error').textContent=e.message;}}else if(event.target.id==='period-jump-form'){event.preventDefault();const day=$('#jump-date').value;if(validDay(day)){closeModal();navigate(type,day);}}else if(event.target.id==='habit-form')saveHabitForm(event);else if(event.target.id==='habit-entry-form')saveHabitEntry(event);else if(event.target.id==='diary-form')saveDiary(event);else if(event.target.id==='task-form')saveTask(event);else if(event.target.id==='entity-form')saveEntity(event);});
 document.addEventListener('input',event=>{const {id,value}=event.target;
   if(event.target.dataset.columnField&&kanbanDraft){kanbanDraft.columns[Number(event.target.closest('[data-column-index]').dataset.columnIndex)][event.target.dataset.columnField]=value;}
   else if(event.target.dataset.boardField&&kanbanDraft)kanbanDraft.fields[event.target.dataset.boardField]=event.target.checked;
@@ -407,61 +418,133 @@ document.addEventListener('change',event=>{const {id,value}=event.target;
   else if(id==='plan-capacity'){getPlan(state,current()).capacity=Math.min(8760,Math.max(0,Number(value)||0));persist();render();}
 });
 modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
-window.addEventListener('storage',event=>{if(event.key===STORAGE_KEY&&event.newValue){try{state=validateBackup(JSON.parse(event.newValue));closeModal();render();toast('Данные обновлены в другой вкладке');}catch{toast('Не удалось обновить данные из другой вкладки');}}});
+window.addEventListener('storage',event=>{if(event.key===STORAGE_KEY&&event.newValue){try{state=validateBackup(JSON.parse(event.newValue));undoHistory.rebase(state,{reset:true});closeModal();render();toast('Данные обновлены в другой вкладке');}catch{toast('Не удалось обновить данные из другой вкладки');}}});
 window.addEventListener('storage',event=>{if(event.key===WEEKLY_VIEW_KEY||event.key===null){weeklyView=event.key===null?readWeeklyView():normalizeWeeklyView(event.newValue);renderWeeklyViewSetting();if(page==='planner'&&type==='week')renderPlanner();}});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){const active=document.activeElement,menu=active?.closest('[data-weekly-menu],#task-filter-menu');if(menu?.open){menu.open=false;menu.querySelector('summary')?.focus();}else closeWeeklyMenus();}});
-function movableRoots(space,parentId){
- const selected=desktopTasks.selection,index=new Map(space.tasks.map(task=>[task.id,task]));
- const parent=index.get(parentId),tasks=[...selected].map(id=>index.get(id));
- if(!parent||!isTaskActive(space,parent)||selected.has(parentId)||tasks.some(task=>!task||!isTaskActive(space,task)))return [];
- if(taskAncestors(parent,index).some(task=>selected.has(task.id)))return [];
- return tasks.filter(task=>task.parentTaskId!==parentId&&!taskAncestors(task,index).some(ancestor=>selected.has(ancestor.id)));
+function selectedBranches(space,ids){
+ const index=new Map(space.tasks.map(task=>[task.id,task])),selected=new Set(ids);
+ const tasks=ids.map(id=>index.get(id));
+ if(tasks.some(task=>!task||!isTaskActive(space,task)))return [];
+ return tasks.filter(task=>!taskAncestors(task,index).some(ancestor=>selected.has(ancestor.id)));
 }
-const branchFields=['parentTaskId','projectId','areaId','project','source','kanbanColumnId','kanbanOrder'];
-const branchLocation=task=>Object.fromEntries(branchFields.map(key=>[key,task[key]]));
-function dropTaskBranch(parentId){
- const candidate=clone(state),roots=movableRoots(candidate,parentId);
+function movableRoots(space,parentId,ids){
+ const index=new Map(space.tasks.map(task=>[task.id,task])),parent=index.get(parentId),selected=new Set(ids);
+ if(!parent||!isTaskActive(space,parent)||selected.has(parentId)||taskAncestors(parent,index).some(task=>selected.has(task.id)))return [];
+ return selectedBranches(space,ids).filter(task=>task.parentTaskId!==parentId);
+}
+function scopeDestination(kind,id){
+ if(kind==='background'){kind=page==='projects'?'project':'area';id=entityId;}
+ if(kind==='project'){
+  const project=state.projects.find(item=>item.id===id);
+  return project&&isProjectAvailable(state,project)?{kind,id,projectId:id}:null;
+ }
+ if(kind==='area'&&(id==='__inbox'||state.areas.some(item=>item.id===id)))return {kind,id:id==='__inbox'?null:id,areaId:id==='__inbox'?null:id};
+ return null;
+}
+function movingToScope(space,destination,ids){
+ if(!destination)return [];
+ return selectedBranches(space,ids).filter(task=>task.parentTaskId||
+  (task.projectId||null)!==(destination.projectId||null)||
+  (!destination.projectId&&(task.areaId||null)!==(destination.areaId||null)));
+}
+function dropTaskScope(kind,id,ids){
+ const destination=scopeDestination(kind,id),candidate=clone(state);
+ const roots=movingToScope(candidate,destination,ids);
  if(!roots.length)return;
- for(const task of roots)setTaskParent(candidate,task,'task',parentId);
- const before=new Map(state.tasks.map(task=>[task.id,branchLocation(task)]));
- const moves=candidate.tasks.flatMap(task=>{
-  const original=before.get(task.id),updated=branchLocation(task);
-  return branchFields.some(key=>original[key]!==updated[key])?[{id:task.id,original,updated}]:[];
+ rememberTaskListOrder(candidate,roots[0]);
+ const previous=clone(candidate);
+ const nextOrder=rememberTaskListOrder(candidate,destination);
+ roots.forEach((task,index)=>{
+  const projectId=task.projectId;
+  setTaskParent(candidate,task,destination.kind,destination.id);
+  if(task.projectId!==projectId){task.kanbanColumnId=null;delete task.kanbanOrder;}
+  task.listOrder=nextOrder+index;
  });
- taskMoveUndo={moves,parentId,mode:desktopTasks.modes.get(parentId)};
+ finishTaskMove(candidate,roots.length===1?'Задача перемещена':'Перенесено '+taskCount(roots.length),{previous});
+ render();
+}
+function dropTaskBranch(parentId,ids){
+ const candidate=clone(state),roots=movableRoots(candidate,parentId,ids);
+ if(!roots.length)return;
+ const nextOrder=rememberTaskListOrder(candidate,roots[0]);
+ const previous=clone(candidate);
+ roots.forEach((task,index)=>{
+  setTaskParent(candidate,task,'task',parentId);
+  task.listOrder=nextOrder+index;
+ });
+ const mode=desktopTasks.modes.get(parentId);
+ const onUndo=()=>{
+  if(mode===undefined)desktopTasks.modes.delete(parentId);
+  else desktopTasks.modes.set(parentId,mode);
+ };
+ finishTaskMove(candidate,roots.length===1?'Перенесена 1 задача':'Перенесено '+taskCount(roots.length),{
+  previous,onUndo,message:'Перенос подзадач отменён'
+ });
  desktopTasks.modes.set(parentId,0);
+ render();
+}
+function dropTaskOrder(targetId,ids,siblingIds,after){
+ const candidate=clone(state);
+ if(!reorderTaskList(candidate,siblingIds,ids,targetId,after))return;
+ finishTaskMove(candidate,'Порядок задач изменён',{message:'Изменение порядка отменено'});
+ render();
+}
+function finishTaskMove(candidate,message,options){
  desktopTasks.selection.clear();
  state=candidate;
- persist();render();toast('Подзадачи добавлены · Ctrl+Z — отменить');
+ persist(options);
+ toast(message,true);
 }
-document.addEventListener('keydown',event=>{
- if(!taskMoveUndo||!desktopPointer.matches||(!event.ctrlKey&&!event.metaKey)||event.shiftKey||event.altKey||event.key.toLowerCase()!=='z'||event.target.closest?.('input,textarea,select,[contenteditable]')||modal.open||window.nativeSloy?.canWrite===false)return;
+function undoChange(){
+ if(window.nativeSloy?.canWrite===false)return;
+ const entry=undoHistory.peek(state);
+ if(!entry)return;
+ const current=state;
+ try{
+  state=validateBackup(entry.state);
+  if(window.nativeSloy){
+   const currentOrder=new Map(current.tasks.map((task,index)=>[task.id,index]));
+   const scopes=new Map();
+   for(const task of state.tasks){
+    const key=JSON.stringify([task.projectId||null,task.projectId?null:task.areaId||null]);
+    const index=currentOrder.get(task.id);
+    const scope=scopes.get(key)||{last:-1,changed:false,task};
+    scope.changed||=index===undefined||index<scope.last;
+    scope.last=index??scope.last;
+    scopes.set(key,scope);
+   }
+   for(const {changed,task} of scopes.values())if(changed)rememberTaskListOrder(state,task);
+  }
+  if(!persist({track:false})){state=current;return;}
+ }catch(error){state=current;toast(error.message);return;}
+ undoHistory.pop();
+ entry.onUndo?.();
+ if(modal.open)closeModal();
+ desktopTasks.selection.clear();
+ render();
+ toast(entry.message||'Последнее изменение отменено');
+}
+window.addEventListener('keydown',event=>{
+ if(!undoHistory.available||window.nativeSloy?.canWrite===false||event.defaultPrevented||event.repeat||(!event.ctrlKey&&!event.metaKey)||event.shiftKey||event.altKey||(event.code!=='KeyZ'&&event.key.toLowerCase()!=='z')||event.target.closest?.('textarea,[contenteditable],input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit])'))return;
  event.preventDefault();
  event.stopImmediatePropagation();
- const {moves,parentId,mode}=taskMoveUndo;
- taskMoveUndo=null;
- const candidate=clone(state),index=new Map(candidate.tasks.map(task=>[task.id,task]));
- if(moves.some(({id,updated})=>!index.has(id)||['parentTaskId','projectId','areaId'].some(key=>(index.get(id)[key]??null)!==(updated[key]??null)))){
-  toast('Связи задач уже изменились');return;
- }
- for(const {id,original,updated} of moves){
-  const task=index.get(id);
-  for(const key of branchFields)if(original[key]!==updated[key]){
-   if(original[key]===undefined)delete task[key];else task[key]=original[key];
-  }
- }
- try{state=validateBackup(candidate);}catch(error){toast(error.message);return;}
- if(mode===undefined)desktopTasks.modes.delete(parentId);else desktopTasks.modes.set(parentId,mode);
- persist();render();toast('Перенос подзадач отменён');
+ undoChange();
 },true);
+const taskCount=count=>count+' '+plural(count,['задача','задачи','задач']);
 enableTaskDragging({
  canDrop:(drag,target)=>{
-  if(target.hasAttribute('data-drop-parent'))return drag.source==='scope'&&desktopPointer.matches&&window.nativeSloy?.canWrite!==false&&desktopTasks.selection.has(drag.id)&&movableRoots(state,target.dataset.dropParent).length>0;
+  if(target.hasAttribute('data-drop-parent'))return drag.source==='scope'&&desktopPointer.matches&&window.nativeSloy?.canWrite!==false&&movableRoots(state,target.dataset.dropParent,drag.ids).length>0;
   if(target.hasAttribute('data-drop-plan'))return page==='planner'&&['day','week'].includes(type)&&drag.source==='journal'&&!target.closest('[data-vault-readonly]')&&!getPlan(state,current()).snapshot;
   return page==='projects'&&scopeLayouts[entityId]==='kanban'&&drag.source==='kanban';
  },
- describeParentDrop:()=> 'Отпустите, чтобы добавить подзадачи',
+ scopeSelection:()=>desktopTasks.selection,
+ onScopeSelect:ids=>{desktopTasks.selection=ids;},
+ describeParentDrop:taskCount,
  onParentDrop:dropTaskBranch,
+ canDropScope:(kind,id,ids)=>window.nativeSloy?.canWrite!==false&&movingToScope(state,scopeDestination(kind,id),ids).length>0,
+ onScopeDrop:dropTaskScope,
+ onOrderDrop:dropTaskOrder,
+ canReorder:()=>window.nativeSloy?.canWrite!==false,
  onPlanDrop:id=>{if(addJournalTask(state,current(),id)){persist();render();toast('Задача в плане');}},
  onColumnDrop:(id,column,before)=>{const next=moveKanbanTask(state,id,column,today(),before,undefined,entityId);persist();render();if(next)toast('Следующий экземпляр — '+dateFormat(next.due));},
  onError:toast
@@ -469,7 +552,7 @@ enableTaskDragging({
 enableHabitHold(openHabitEntry);
 enableTaskSwipe({canComplete:(id,row)=>window.nativeSloy?.canWrite!==false&&!row.closest('[data-vault-readonly]')&&canSwipeTask(state,state.tasks.find(t=>t.id===id)),onComplete:id=>changeTaskDone(id,true)});
 render();
-if(!loadError)persist();
+if(!loadError)persist({track:false});
 if(loadError)toast('Сохранённые данные не удалось прочитать. Резервная копия поможет их восстановить.');
 
 function toggleTree(key){treeExpanded[key]=!(treeExpanded[key]??key.startsWith('area:'));try{localStorage.setItem('kontur-tree',JSON.stringify(treeExpanded));}catch{}renderSidebar();}

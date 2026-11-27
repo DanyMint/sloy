@@ -2,6 +2,7 @@ import {entityIcon,entityIconPicker} from './entity-icons.js';
 import {correlationOverlayHTML} from './correlation-overlay.js';
 import {period,shiftPeriod,addDays,today,dateOf} from './model.js';
 import {durationLabel,sleepMinutes} from './wellness.js';
+import {sleepFieldsHTML} from './sleep-picker.js';
 import {analyticsRows,analyticsSummary,metricOptions,correlation} from './analytics.js';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=(n,d=1)=>n===null||n===undefined?'—':Number(n).toLocaleString('ru-RU',{maximumFractionDigits:d});
@@ -43,11 +44,11 @@ export function adjacentPeriodsHTML(type,anchor){
     return `<button class="period-choice ${target.key===selected.key?'selected':''} ${isCurrent?'is-current-period':''}" data-action="select-period" data-date="${target.start}" aria-label="${caption} ${noun[0]}: ${esc(name)} ${esc(detail)}${isCurrent?', текущая дата в этом периоде':''}" aria-pressed="${target.key===selected.key}" ${isCurrent?'aria-current="date"':''}><span class="period-choice-caption">${caption} ${noun[0]}</span><strong>${esc(name)}</strong>${detail?`<small>${esc(detail)}</small>`:''}</button>`;
   }).join('')}</div>`;
 }
-export function diaryFormHTML(state,day){
-  const log=state.dayLogs[day]||{},minutes=sleepMinutes(day,log),bed=log.bedDate&&log.bedTime?log.bedDate+'T'+log.bedTime:'';
-  return `<form id="diary-form" class="compact-diary"><div class="diary-grid"><section class="diary-card wellbeing-card"><div class="compact-review-heading"><h3>Как прошёл день?</h3><button class="text-button" type="button" data-action="clear-wellbeing">Убрать оценку</button></div><fieldset class="wellbeing-fieldset"><legend class="visually-hidden">Самочувствие от 1 до 10</legend><div class="wellbeing-scale">${Array.from({length:10},(_,i)=>`<label><input type="radio" name="wellbeing" value="${i+1}" ${log.wellbeing===i+1?'checked':''}><span>${i+1}</span></label>`).join('')}</div></fieldset></section><section class="diary-card compact-sleep"><div class="compact-review-heading"><h3>Сон к утру ${date(day)}</h3><strong id="sleep-duration">${durationLabel(minutes)}</strong></div><div class="sleep-fields"><div><label class="form-label" for="sleep-bed-datetime">Когда лёг</label><input class="field" type="datetime-local" id="sleep-bed-datetime" step="60" value="${esc(bed)}" max="${day}T23:59"></div><div><label class="form-label" for="sleep-wake-time">Во сколько встал</label><input class="field" type="time" id="sleep-wake-time" value="${esc(log.wakeTime||'')}"></div></div></section></div><div class="error-text" id="diary-error" role="alert"></div></form>`;
+export function diaryFormHTML(state,day,format='24'){
+  const log=state.dayLogs[day]||{},minutes=sleepMinutes(day,log);
+  return `<form id="diary-form" class="compact-diary"><div class="diary-grid"><section class="diary-card wellbeing-card"><div class="compact-review-heading"><h3>Как прошёл день?</h3><button class="text-button" type="button" data-action="clear-wellbeing">Убрать оценку</button></div><fieldset class="wellbeing-fieldset"><legend class="visually-hidden">Самочувствие от 1 до 10</legend><div class="wellbeing-scale">${Array.from({length:10},(_,i)=>`<label><input type="radio" name="wellbeing" value="${i+1}" ${log.wellbeing===i+1?'checked':''}><span>${i+1}</span></label>`).join('')}</div></fieldset></section><section class="diary-card compact-sleep"><div class="compact-review-heading"><h3>Сон к утру ${date(day)}</h3><strong id="sleep-duration">${durationLabel(minutes)}</strong></div><div id="sleep-fields">${sleepFieldsHTML(log,day,format)}</div></section></div><div class="error-text" id="diary-error" role="alert"></div></form>`;
 }
-export function plannerDiaryHTML(state,day){return `<section id="day-review" class="planner-diary" aria-label="Дневник выбранного дня">${diaryFormHTML(state,day)}</section>`;}
+export function plannerDiaryHTML(state,day,format){return `<section id="day-review" class="planner-diary" aria-label="Дневник выбранного дня">${diaryFormHTML(state,day,format)}</section>`;}
 function metricSelect(id,metrics,current){return `<select class="field" id="${id}">${metrics.map(m=>`<option value="${esc(m.id)}" ${m.id===current?'selected':''}>${esc(m.label)}${m.unit?' · '+esc(m.unit):''}</option>`).join('')}</select>`;}
 function scatterChart(pairs,mx,my){
   if(!pairs.length)return `<div class="chart-empty"><span>⠿</span><h3>Записи ещё не совпали по датам</h3><p>Для точки нужны обе метрики за один день или неделю. Пропуски не заменяются нулями.</p></div>`;

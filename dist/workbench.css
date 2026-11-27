@@ -39,7 +39,7 @@
 .entity-list .area-card .entity-card-top{grid-column:1;grid-row:1;align-self:center}
 .entity-list .area-card .area-card-counts{grid-column:2;grid-row:1;justify-content:flex-end}
 .entity-list .area-card .entity-card-footer{grid-column:1/-1;grid-row:2}
-.repeat-settings{margin:20px 0 0;padding:13px 15px 15px;border:1px solid var(--accent-border);border-radius:9px;background:var(--accent-soft);min-width:0}
+.repeat-settings{margin:20px 0 0;padding:0;border:0;background:transparent;min-width:0}
 .repeat-settings legend{font-size:12px;color:var(--accent-text);padding:0 6px}
 .repeat-settings .form-label{margin-top:0}
 .repeat-settings #repeat-custom-wrap{margin-top:13px}
@@ -110,7 +110,6 @@
  .kanban-settings-row>input{grid-column:1/-1}
  .kanban-column-actions{grid-column:1/-1;justify-content:flex-end}
  .kanban-column-actions button{width:35px;min-height:32px}
- .repeat-settings{padding:12px}
 }
 
 .compact-review-heading .text-button{flex-shrink:0;white-space:nowrap;font-size:10px;font-weight:400;padding:4px 0;min-height:28px;color:var(--secondary)}

@@ -1,3 +1,4 @@
+import {taskAncestors} from './task-hierarchy.js';
 import {validEntityIcon} from './entity-icons.js';
 import {repeatLabels,nextRepeat,validateRepeat} from './recurrence.js';
 export {repeatLabels} from './recurrence.js';
@@ -94,6 +95,25 @@ export function attachTask(state,task,projectId=null,areaId=null){
   if(projectId){const p=state.projects.find(p=>p.id===projectId);if(!p)throw new Error('Проект не найден.');if(!isProjectAvailable(state,p))throw new Error('Сначала откройте или восстановите проект.');task.projectId=p.id;task.project=p.name;task.areaId=projectArea(state,p);}
   else{if(areaId&&!state.areas.some(a=>a.id===areaId))throw new Error('Зона не найдена.');task.projectId=null;task.project='Входящие';task.areaId=areaId||null;}
   return task;
+}
+export function setTaskParent(state,task,kind,id){
+  const index=new Map(state.tasks.map(item=>[item.id,item]));
+  if(kind==='task'){
+    const parent=index.get(id);
+    if(!parent||parent===task||taskAncestors(parent,index).includes(task))throw new Error('Выберите задачу вне этой ветки.');
+    if(parent.archived&&task.parentTaskId!==id)throw new Error('Сначала восстановите родительскую задачу.');
+    attachTask(state,task,parent.projectId,parent.areaId);
+    task.source=parent.source;
+    task.parentTaskId=parent.id;
+  }else{
+    attachTask(state,task,kind==='project'?id:null,kind==='area'?id:null);
+    delete task.parentTaskId;
+  }
+  for(const child of state.tasks){
+    if(!child.parentTaskId||!taskAncestors(child,index).includes(task))continue;
+    if(child.projectId!==task.projectId){child.kanbanColumnId=null;delete child.kanbanOrder;}
+    Object.assign(child,{projectId:task.projectId,areaId:task.areaId,project:task.project,source:task.source});
+  }
 }
 export function projectTasks(state,id){const ids=new Set([id,...state.projects.filter(p=>p.parentId===id).map(p=>p.id)]);return state.tasks.filter(t=>isTaskActive(state,t)&&ids.has(t.projectId));}
 export function areaTasks(state,id){return state.tasks.filter(t=>isTaskActive(state,t)&&taskArea(state,t)===id);}

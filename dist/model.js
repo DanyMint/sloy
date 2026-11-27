@@ -1,3 +1,4 @@
+import {taskAncestors,plannedTaskHours} from './task-hierarchy.js';
 import {validateKanban} from './kanban.js';
 import {validateWellness} from './wellness.js';
 import {normalizeState,validateStructure,importLinks,isProjectArchived,isTaskPlannable} from './domain.js';
@@ -32,7 +33,8 @@ export function freezePlan(state,p,at=new Date().toISOString()) {
   const items=plan.selected.map(id=>state.tasks.find(t=>t.id===id&&isTaskPlannable(state,t))).filter(Boolean);
   const focusAreas=(plan.focusAreas||[]).map(id=>state.areas.find(a=>a.id===id)).filter(Boolean).map(clone),focusProjects=(plan.focusProjects||[]).map(id=>state.projects.find(a=>a.id===id&&!isProjectArchived(state,a))).filter(Boolean).map(p=>({...clone(p),areaName:state.areas.find(a=>a.id===p.areaId)?.name||'Без зоны',parentName:state.projects.find(parent=>parent.id===p.parentId)?.name||''}));
   if(!items.length&&!focusAreas.length&&!focusProjects.length) throw new Error('Выберите задачи или фокусные проекты и зоны');
-  plan.snapshot={at,goal:plan.goal,capacity:plan.capacity,items:items.map(({id,title,project,projectId,areaId,estimate,due,source,blockId})=>({id,title,project,projectId,areaId,estimate,due,source,blockId}))};
+  const index=new Map(state.tasks.map(task=>[task.id,task]));
+  plan.snapshot={at,goal:plan.goal,capacity:plan.capacity,items:items.map(({id,title,project,projectId,areaId,estimate,due,source,blockId,parentTaskId})=>({id,title,project,projectId,areaId,estimate,due,source,blockId,...(parentTaskId?{ancestorTaskIds:taskAncestors({id,parentTaskId},index).map(parent=>parent.id)}:{})}))};
   if(plan.journalVersion===2||p.type==='quarter')Object.assign(plan.snapshot,{focusAreas,focusProjects});
   return plan.snapshot;
 }
@@ -41,7 +43,7 @@ export function comparison(state,p) {
   const ids=new Set(items.map(t=>t.id));
   const rows=items.map(item=> {const live=state.tasks.find(t=>t.id===item.id);const changed=!!live&&['title','project','estimate','due'].some(k=>String(live[k]??'')!==String(item[k]??''));return {item,live,changed,done:!!live&&!live.cancelled&&live.done&&inPeriod(live.completedAt,p)};});
   const extras=state.tasks.filter(t=>!t.cancelled&&t.done&&inPeriod(t.completedAt,p)&&!ids.has(t.id));
-  return {rows,extras,done:rows.filter(r=>r.done).length,total:rows.length,hours:items.reduce((sum,t)=>sum+(Number(t.estimate)||0),0),changed:rows.filter(r=>r.changed).length};
+  return {rows,extras,done:rows.filter(r=>r.done).length,total:rows.length,hours:plannedTaskHours(items,plan.snapshot?null:state.tasks),changed:rows.filter(r=>r.changed).length};
 }
 export function hash(s) {let h=2166136261;for(const c of s) {h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return (h>>>0).toString(36);}
 export function parseMarkdown(text,source='Inbox.md') {
@@ -82,9 +84,21 @@ export function mergeTasks(state,incoming) {
   normalizeState(state);return {added,updated};
 }
 export function tasksMarkdown(state,source=null) {
-  return state.tasks.filter(t=>!t.archived&&(!source||t.source===source)).map(t=>{
+  const tasks=state.tasks.filter(t=>!t.archived&&(!source||t.source===source));
+  const included=new Map(tasks.map(task=>[task.id,task])),children=new Map();
+  for(const task of tasks){
+    const parent=included.has(task.parentTaskId)?task.parentTaskId:null;
+    if(!children.has(parent))children.set(parent,[]);
+    children.get(parent).push(task);
+  }
+  const rows=[];
+  const visit=(parent,depth)=>{
+    for(const task of children.get(parent)||[]){rows.push({task,depth});visit(task.id,depth+1);}
+  };
+  visit(null,0);
+  return rows.map(({task:t,depth})=>{
     const area=state.areas?.find(a=>a.id===t.areaId);
-    return '- ['+(t.cancelled?'-':t.done?'x':' ')+'] '+t.title+' #'+(t.project||'Входящие').replace(/\s+/g,'_')+(t.estimate?' [estimate:: '+t.estimate+']':'')+(t.due?' 📅 '+t.due:'')+(t.done&&t.completedAt?' ✅ '+t.completedAt:'')+' [repeat:: '+(t.recurrence||'none')+']'+(t.recurrence==='custom'?' [repeat_every:: '+(t.repeatEvery||1)+'] [repeat_unit:: '+(t.repeatUnit||'days')+']':'')+(t.recurrence&&t.recurrence!=='none'?' [repeat_from:: '+(t.repeatFrom||'completion')+']':'')+(t.repeatMissed?' [repeat_missed:: '+t.repeatMissed+']':'')+(t.repeatAnchor?' [repeat_anchor:: '+t.repeatAnchor+']':'')+(Object.hasOwn(t,'someday')?' [someday:: '+t.someday+']':'')+' [project_id:: '+(t.projectId||'none')+'] [area_id:: '+(t.areaId||'none')+']'+(area?' [area:: '+encodeURIComponent(area.name)+']':'')+' ^'+t.blockId;
+    return '    '.repeat(depth)+'- ['+(t.cancelled?'-':t.done?'x':' ')+'] '+t.title+' #'+(t.project||'Входящие').replace(/\s+/g,'_')+(t.estimate?' [estimate:: '+t.estimate+']':'')+(t.due?' 📅 '+t.due:'')+(t.done&&t.completedAt?' ✅ '+t.completedAt:'')+' [repeat:: '+(t.recurrence||'none')+']'+(t.recurrence==='custom'?' [repeat_every:: '+(t.repeatEvery||1)+'] [repeat_unit:: '+(t.repeatUnit||'days')+']':'')+(t.recurrence&&t.recurrence!=='none'?' [repeat_from:: '+(t.repeatFrom||'completion')+']':'')+(t.repeatMissed?' [repeat_missed:: '+t.repeatMissed+']':'')+(t.repeatAnchor?' [repeat_anchor:: '+t.repeatAnchor+']':'')+(Object.hasOwn(t,'someday')?' [someday:: '+t.someday+']':'')+' [project_id:: '+(t.projectId||'none')+'] [area_id:: '+(t.areaId||'none')+']'+(area?' [area:: '+encodeURIComponent(area.name)+']':'')+' ^'+t.blockId;
   }).join('\n')+'\n';
 }
 
@@ -113,9 +127,14 @@ export function validateBackup(input) {
   const dateOk=d=>typeof d==='string'&&(!d||/^\d{4}-\d{2}-\d{2}$/.test(d)&&!Number.isNaN(dateOf(d).getTime())&&iso(dateOf(d))===d);
   const ids=new Set();
   for(const t of input.tasks) {if(typeof t.id!=='string'||ids.has(t.id)||typeof t.title!=='string'||!t.title.trim()||typeof t.project!=='string'||typeof t.source!=='string'||typeof t.blockId!=='string'||!dateOk(t.due)||!dateOk(t.completedAt)||typeof t.done!=='boolean'||!Number.isFinite(t.estimate)||t.estimate<0) throw new Error('Некорректная задача в резервной копии.'); ids.add(t.id);}
+  const taskIndex=new Map(input.tasks.map(task=>[task.id,task]));
+  for(const task of input.tasks)if(task.parentTaskId!=null){
+    if(typeof task.parentTaskId!=='string'||!task.parentTaskId)throw new Error('Некорректная родительская задача.');
+    taskAncestors(task,taskIndex);
+  }
   for(const [key,p] of Object.entries(input.plans)) {
     if(!/^((day|week):\d{4}-\d{2}-\d{2}|month:\d{4}-\d{2}|quarter:\d{4}-Q[1-4]|year:\d{4})$/.test(key)||!p||!Array.isArray(p.selected)||p.selected.some(id=>typeof id!=='string')||typeof p.goal!=='string'||typeof p.reflection!=='string'||!Number.isFinite(p.capacity)||p.capacity<0) throw new Error('Некорректный план в резервной копии.');
-    if(p.snapshot&&(!Array.isArray(p.snapshot.items)||typeof p.snapshot.at!=='string'||typeof p.snapshot.goal!=='string'||!Number.isFinite(p.snapshot.capacity)||p.snapshot.items.some(t=>!t||typeof t.id!=='string'||typeof t.title!=='string'||typeof t.source!=='string'||typeof t.blockId!=='string'||!Number.isFinite(t.estimate)))) throw new Error('Некорректный снимок плана.');
+    if(p.snapshot&&(!Array.isArray(p.snapshot.items)||typeof p.snapshot.at!=='string'||typeof p.snapshot.goal!=='string'||!Number.isFinite(p.snapshot.capacity)||p.snapshot.items.some(t=>!t||typeof t.id!=='string'||typeof t.title!=='string'||typeof t.source!=='string'||typeof t.blockId!=='string'||!Number.isFinite(t.estimate)||t.ancestorTaskIds!==undefined&&(!Array.isArray(t.ancestorTaskIds)||t.ancestorTaskIds.some(id=>typeof id!=='string'))))) throw new Error('Некорректный снимок плана.');
     for(const k of ['focusAreas','focusProjects']){
       if(p[k]!==undefined&&(!Array.isArray(p[k])||p[k].some(id=>typeof id!=='string')))throw new Error('Некорректный фокус плана.');
       if(p.snapshot?.[k]!==undefined&&(!Array.isArray(p.snapshot[k])||p.snapshot[k].some(e=>!e||typeof e.id!=='string'||typeof e.name!=='string'||typeof e.description!=='string')))throw new Error('Некорректный снимок фокуса.');

@@ -40,3 +40,5 @@
 .native-sync-actions{border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
 .native-sync-actions p{margin:0 0 8px}
 @media(max-width:600px){.native-settings-actions button,.native-sync-actions button{width:100%;min-height:44px}}
+
+#task-form #edit-source[readonly],#task-form label[for="edit-source"]:has(+ #edit-source[readonly]){display:block}

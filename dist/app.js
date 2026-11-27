@@ -1,3 +1,4 @@
+import {initTaskEditor} from './task-editor.js';
 import {openSleepEditor,readTimeFormat,saveTimeFormat,sleepFieldsHTML} from './sleep-picker.js';
 import {WEEKLY_VIEW_KEY,normalizeWeeklyView,readWeeklyView,saveWeeklyView} from './planning-preferences.js';
 import {weeklyPlanningContext,weeklySourcesHTML,weeklyTaskRowHTML} from './weekly-planning.js';
@@ -16,8 +17,8 @@ import {journalPlan as getPlan,freezeJournal as freezePlan,weeklyTasks,selectJou
 import {focusPlannerHTML,focusCount,yearStatsHTML,quarterStatsHTML,taskChartHTML} from './journal-pages.js';
 import {saveHabit,deleteHabit,setHabitValue,incrementHabit,saveDayLog,sleepMinutes,durationLabel,validDay} from './wellness.js';
 import {diaryWeekHTML,adjacentPeriodsHTML,plannerDiaryHTML,habitForm,habitDeleteConfirmation,habitEntryForm,analyticsHTML} from './wellness-pages.js';
-import {normalizeState,newId,saveArea,saveProject,attachTask,setTaskStatus,projectArea,materializeRepeats,isTaskActive,setProjectArchived,deleteProject,setProjectCompleted,isProjectAvailable} from './domain.js';
-import {entityForm,taskForm,statusBadge} from './pages.js';
+import {normalizeState,newId,saveArea,saveProject,setTaskParent,setTaskStatus,projectArea,materializeRepeats,isTaskActive,setProjectArchived,deleteProject,setProjectCompleted,isProjectAvailable} from './domain.js';
+import {entityForm,taskForm,statusBadge,subtasksHTML} from './pages.js';
 import {STORAGE_KEY,clone,today,dateOf,addDays,period,shiftPeriod,comparison,tasksMarkdown,planMarkdown,validateBackup,seedState} from './model.js';
 const $=s=>document.querySelector(s);
 initSelectMenus();
@@ -216,9 +217,10 @@ function openModal(html){closeWeeklyMenus();$('#modal-content').innerHTML=html; 
 function closeModal(){modal.close();kanbanDraft=null;}
 function showTask(id=null,defaults={}) {
   if(!isProjectAvailable(state,id?state.tasks.find(t=>t.id===id)?.projectId:defaults.projectId)){toast('Сначала откройте или восстановите проект.');return;}
-  editingDestination=defaults.destination||'';editingId=id;const t=id?state.tasks.find(t=>t.id===id):{title:'',project:'Входящие',projectId:defaults.projectId||null,areaId:defaults.areaId||null,estimate:1,due:'',done:false,cancelled:false,completedAt:'',source:'Задачи.md',recurrence:defaults.recurrence||'none',repeatFrom:'due'};
+  editingDestination=defaults.destination||'';editingId=id;const t=id?state.tasks.find(t=>t.id===id):{title:'',project:'Входящие',projectId:defaults.projectId||null,areaId:defaults.areaId||null,parentTaskId:defaults.parentTaskId||null,estimate:1,due:'',done:false,cancelled:false,completedAt:'',source:'Задачи.md',recurrence:defaults.recurrence||'none',repeatFrom:'due'};
   if(!id&&defaults.recurrence)t.due=today();
-  openModal(taskForm(state,t,!id));
+  openModal(taskForm(state,t,!id,page==='planner'&&type==='day'?anchor:today()));
+  initTaskEditor($('#task-form'));
 }
 
 function saveTask(event){
@@ -231,8 +233,13 @@ function saveTask(event){
     Object.assign(task,{title,estimate:Number($('#edit-estimate').value),due:$('#edit-due').value,recurrence:$('#edit-recurrence').value,repeatEvery:$('#edit-recurrence').value==='custom'?Number($('#edit-repeat-every').value):1,repeatUnit:$('#edit-recurrence').value==='custom'?$('#edit-repeat-unit').value:'days',repeatFrom:$('#edit-repeat-from').value,repeatMissed:$('#edit-repeat-missed').value});
     if(previousRepeat!==[task.recurrence,task.repeatEvery,task.repeatUnit,task.repeatFrom,task.due].join('|'))task.repeatAnchor=null;
     if(task.recurrence!=='none'&&task.repeatFrom==='due'&&!task.due)task.due=today();
-    attachTask(candidate,task,$('#edit-project-id').value||null,$('#edit-area-id').value||null);
-    normalizeState(candidate);const next=setTaskStatus(candidate,id,status,date);state=candidate;
+    const [parentKind,...parentId]=$('#edit-task-parent').value.split(':');
+    setTaskParent(candidate,task,parentKind,parentId.join(':'));
+    normalizeState(candidate);
+    let next;
+    if(task.done&&status==='done')task.completedAt=date;
+    else next=setTaskStatus(candidate,id,status,date);
+    state=candidate;
     if(!editingId&&editingDestination==='overplan')addOverplan(state,today(),id);
     if(!editingId&&editingDestination==='day'){const plan=getPlan(state,current());plan.direct??=[];plan.direct.push(id);addDayTask(state,anchor,id);}
     persist();closeModal();render();toast(next?'Задача сохранена. Следующий экземпляр — '+dateFormat(next.due):'Задача сохранена');
@@ -242,8 +249,19 @@ function saveTask(event){
 function changeTaskDone(id,completeOnly=false){
  const task=state.tasks.find(t=>t.id===id);
  if(!task||!isTaskActive(state,task)||task.cancelled||task.skipped||completeOnly&&task.done)return;
- const date=page==='planner'&&type==='day'?anchor:today(),next=setTaskStatus(state,id,completeOnly||!task.done?'done':'todo',date);
- persist();render();toast(next?'Выполнено. Следующий экземпляр — '+dateFormat(next.due):task.done?'Выполнено · '+dateFormat(date):'Задача возвращена в работу');
+ if(window.nativeSloy?.canWrite===false)return;
+ const date=page==='planner'&&type==='day'?anchor:today();
+ let next;
+ try{next=setTaskStatus(state,id,completeOnly||!task.done?'done':'todo',date);}
+ catch(error){toast(error.message);return;}
+ persist();render();
+ const subtasks=$('#task-form .task-subtasks'),parent=state.tasks.find(item=>item.id===editingId);
+ if(modal.open&&subtasks&&parent&&task.parentTaskId===parent.id){
+  const restoreFocus=subtasks.contains(document.activeElement);
+  subtasks.outerHTML=subtasksHTML(state,parent);
+  if(restoreFocus)[...document.querySelectorAll('#task-form .task-subtasks [data-action="toggle-done"]')].find(button=>button.dataset.id===id)?.focus();
+ }
+ toast(next?'Выполнено. Следующий экземпляр — '+dateFormat(next.due):task.done?'Выполнено · '+dateFormat(date):'Задача возвращена в работу');
 }
 
 function showFreeze(){
@@ -323,7 +341,11 @@ document.addEventListener('click',event=>{
   else if(action==='toggle-done')changeTaskDone(id);
   else if(action==='new-task')showTask(null,{projectId:button.dataset.project|| (page==='projects'?entityId:null),areaId:button.dataset.area||(page==='areas'&&entityId!=='__inbox'?entityId:null),destination:page==='today'?'overplan':page==='planner'&&type==='day'?'day':''});
   else if(action==='edit-task')showTask(id);
-  else if(action==='archive-task'){const t=state.tasks.find(t=>t.id===id);openModal('<h2>Убрать из активных задач?</h2><p class="modal-description">'+esc(t.title)+'</p><div class="hint-box">Исходные планы сохранят задачу и историю её выполнения. Действие можно отменить сразу после удаления.</div><div class="modal-actions"><button class="secondary-button" data-action="close-modal">Отмена</button><button class="primary-button" data-action="confirm-archive" data-id="'+esc(id)+'">Убрать задачу</button></div>');}
+  else if(action==='new-subtask'){
+    const parent=state.tasks.find(task=>task.id===id);
+    if(parent&&!parent.archived)showTask(null,{parentTaskId:id,projectId:parent.projectId,areaId:parent.areaId});
+  }
+  else if(action==='archive-task'){const t=state.tasks.find(t=>t.id===id);openModal('<h2>Убрать из активных задач?</h2><p class="modal-description">'+esc(t.title)+'</p><div class="hint-box">Исходные планы сохранят задачу и историю её выполнения. Подзадачи останутся доступны в проекте или зоне.</div><div class="modal-actions"><button class="secondary-button" data-action="close-modal">Отмена</button><button class="primary-button" data-action="confirm-archive" data-id="'+esc(id)+'">Убрать задачу</button></div>');}
   else if(action==='confirm-archive'){state.tasks.find(t=>t.id===id).archived=true;for(const plan of Object.values(state.plans))if(!plan.snapshot)plan.selected=plan.selected.filter(x=>x!==id);persist();closeModal();render();openModal('<h2>Задача убрана</h2><p class="modal-description">Зафиксированные планы сохраняют её исходную версию.</p><div class="modal-actions"><button class="secondary-button" data-action="undo-archive" data-id="'+esc(id)+'">Вернуть задачу</button><button class="primary-button" data-action="close-modal">Готово</button></div>');}
   else if(action==='undo-archive'){state.tasks.find(t=>t.id===id).archived=false;state.tasks.find(t=>t.id===id).skipped=false;state.tasks.find(t=>t.id===id).skippedAt='';persist();closeModal();render();toast('Задача восстановлена');}
   else if(action==='unfreeze'){if(!getPlan(state,current()).snapshot)return;openModal('<h2>Снять фиксацию плана?</h2><p class="modal-description">План вернётся в черновик. Вы сможете изменить состав и зафиксировать его заново.</p><div class="hint-box">Статусы задач, сон и записи дня сохранятся. При следующей фиксации снимок этого периода будет заменён. Другие периоды не изменятся.</div><div class="modal-actions"><button class="secondary-button" data-action="close-modal">Отмена</button><button class="primary-button" data-action="confirm-unfreeze">Снять фиксацию</button></div>');}
@@ -360,11 +382,9 @@ document.addEventListener('change',event=>{const {id,value}=event.target;
   else if(event.target.name==='wellbeing'&&event.target.closest('#diary-form'))saveDiary(event);
   else if(id.startsWith('analytics-')){const key=id.replace('analytics-','');if(key==='date'&&!validDay(value))return;analyticsContext[key==='date'?'anchor':key]=key==='span'?Number(value):value;renderWellness();}
   else if(id==='entity-parent'){const p=state.projects.find(p=>p.id===value);$('#entity-area').disabled=!!p;if(p)$('#entity-area').value=p.areaId||'';}
-  else if(id==='edit-project-id'){const p=state.projects.find(p=>p.id===value);$('#edit-area-id').disabled=!!p;if(p)$('#edit-area-id').value=projectArea(state,p)||'';}
   else if(id==='diary-date'&&validDay(value))navigateDay(value);
   else if(id==='task-filter'){filter=value;renderTasks();closeWeeklyMenus();}
   else if(id==='plan-capacity'){getPlan(state,current()).capacity=Math.min(8760,Math.max(0,Number(value)||0));persist();render();}
-  else if(id==='edit-status')$('#completed-date-wrap').hidden=value!=='done';
 });
 modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
 window.addEventListener('storage',event=>{if(event.key===STORAGE_KEY&&event.newValue){try{state=validateBackup(JSON.parse(event.newValue));closeModal();render();toast('Данные обновлены в другой вкладке');}catch{toast('Не удалось обновить данные из другой вкладки');}}});
@@ -372,7 +392,7 @@ window.addEventListener('storage',event=>{if(event.key===WEEKLY_VIEW_KEY||event.
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){const active=document.activeElement,menu=active?.closest('[data-weekly-menu],#task-filter-menu');if(menu?.open){menu.open=false;menu.querySelector('summary')?.focus();}else closeWeeklyMenus();}});
 enableTaskDragging({canDrop:(drag,target)=>target.hasAttribute('data-drop-plan')?page==='planner'&&['day','week'].includes(type)&&drag.source==='journal'&&!target.closest('[data-vault-readonly]')&&!getPlan(state,current()).snapshot:page==='projects'&&scopeLayouts[entityId]==='kanban'&&drag.source==='kanban',onPlanDrop:id=>{if(addJournalTask(state,current(),id)){persist();render();toast('Задача в плане');}},onColumnDrop:(id,column,before)=>{const next=moveKanbanTask(state,id,column,today(),before,undefined,entityId);persist();render();if(next)toast('Следующий экземпляр — '+dateFormat(next.due));},onError:toast});
 enableHabitHold(openHabitEntry);
-enableTaskSwipe({canComplete:(id,row)=>!row.closest('[data-vault-readonly]')&&canSwipeTask(state,state.tasks.find(t=>t.id===id)),onComplete:id=>changeTaskDone(id,true)});
+enableTaskSwipe({canComplete:(id,row)=>window.nativeSloy?.canWrite!==false&&!row.closest('[data-vault-readonly]')&&canSwipeTask(state,state.tasks.find(t=>t.id===id)),onComplete:id=>changeTaskDone(id,true)});
 render();
 if(!loadError)persist();
 if(loadError)toast('Сохранённые данные не удалось прочитать. Резервная копия поможет их восстановить.');

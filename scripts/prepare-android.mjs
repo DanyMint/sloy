@@ -9,6 +9,12 @@ const main=join(root,'app/src/main');
 const manifest=join(main,'AndroidManifest.xml');
 const res=join(main,'res');
 let xml=await readFile(manifest,'utf8');
+for(const [name,maxSdk] of [['MANAGE_EXTERNAL_STORAGE',null],['READ_EXTERNAL_STORAGE',29],['WRITE_EXTERNAL_STORAGE',29]]){
+  if(xml.includes(`android:name="android.permission.${name}"`))continue;
+  const max=maxSdk===null?'':` android:maxSdkVersion="${maxSdk}"`;
+  xml=xml.replace('<application',`<uses-permission android:name="android.permission.${name}"${max} />\n    <application`);
+}
+await copyFile('src-tauri/android/DefaultVaultPlugin.kt',join(main,'java/app/sloy/journal/DefaultVaultPlugin.kt'));
 
 // `tauri android init` installs template mipmaps. Generate the branded set in
 // a temporary directory because `tauri icon` also writes desktop assets.
@@ -26,7 +32,8 @@ try {
 xml=xml.replace(/<application\b[^>]*>/,application=>{
   const attributes=application.replace(/\s+android:(?:icon|roundIcon)\s*=\s*(?:"[^"]*"|'[^']*')/g,'');
   const network=attributes.includes('android:networkSecurityConfig')?'':'\n        android:networkSecurityConfig="@xml/network_security_config"';
-  return attributes.replace('<application','<application\n        android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher_round"'+network);
+  const legacy=attributes.includes('android:requestLegacyExternalStorage')?'':'\n        android:requestLegacyExternalStorage="true"';
+  return attributes.replace('<application','<application\n        android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher_round"'+network+legacy);
 });
 await writeFile(manifest,xml);
 

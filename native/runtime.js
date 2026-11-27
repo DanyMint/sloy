@@ -63,7 +63,69 @@ function updateSyncSettings(form){form.querySelector('#native-sync-options').hid
 function decorate(){updateWorkspaceAvailability(document,lastContext?.page,{busy,connected});installButtons();const original=$('#obsidian-settings-form');if(original)original.closest('section').hidden=true;if(lastContext?.page==='settings'){let section=$('#native-settings');if(!section){section=document.createElement('div');section.id='native-settings';$('#settings-view').append(section);}if(!section.querySelector('#native-settings-form'))section.innerHTML=fields();}$('#native-period-statistics')?.remove();if(lastContext?.page==='planner'){const {type,anchor,state}=lastContext;const y=anchor.slice(0,4),m=+anchor.slice(5,7),start=type==='year'?y+'-01-01':type==='quarter'?y+'-'+String(Math.floor((m-1)/3)*3+1).padStart(2,'0')+'-01':type==='week'?new Date(Date.parse(anchor+'T12:00:00Z')-((new Date(anchor+'T12:00:00Z').getUTCDay()+6)%7)*86400000).toISOString().slice(0,10):anchor;const end=type==='year'?y+'-12-31':type==='quarter'?new Date(Date.UTC(+y,Math.floor((m-1)/3)*3+3,0,12)).toISOString().slice(0,10):type==='week'?new Date(Date.parse(start+'T12:00:00Z')+6*86400000).toISOString().slice(0,10):anchor;$('#planner-view').insertAdjacentHTML('beforeend',knowledgeStatisticsHTML(state.knowledgeFacts,start,end));}paint();}
 async function recovery(){const rows=await invoke('vault_recovery');const modal=$('#modal');$('#modal-content').innerHTML='<h2>Несохранённые изменения</h2><p>Эти копии хранятся локально вне Obsidian. Перед повторной попыткой сравните их с файлами хранилища.</p>'+rows.map(r=>`<details><summary>${esc(r.name)}</summary><textarea class="field" rows="7" readonly>${esc(r.text)}</textarea></details>`).join('')+(!rows.length?'<p>Сохранённых копий нет.</p>':'')+'<div class="native-actions"><button type="button" class="secondary-button" data-native-retry>Повторить запись</button><button type="button" class="secondary-button" data-native-reload>Перечитать хранилище, сохранив копии</button></div>';if(!modal.open)modal.showModal();}
 async function check({force=false,rebuild=false}={}){if(busy||!settings.vaultPath)return;busy=true;updateWorkspaceAvailability(document,lastContext?.page,{busy,connected});paint();try{await engine.reconcile({force,rebuild});connected=true;}catch(e){status=String(e.message||e);binding?.toast(status);}finally{busy=false;saveDayEdits();decorate();}}
-async function connect(form){if(busy)return;busy=true;paint();try{await engine.flush();const v=new FormData(form),folders={...defaults};for(const key of Object.keys(folders))if(typeof defaults[key]==='string')folders[key]=String(v.get(key)||'').trim();folders.knowledgeTypes=knowledgeRulesFromForm(v);new Intl.DateTimeFormat('en',{timeZone:folders.timezone}).format(new Date());connected=false;settings=await invoke('settings_save',{settings:{vaultPath:String(v.get('vaultPath')).trim(),androidTreeUri:selectedTreeUri||settings.androidTreeUri,folders,syncthing:{enabled:v.has('syncEnabled'),url:String(v.get('syncUrl')).trim(),folderId:String(v.get('folderId')).trim(),apiKey:String(v.get('apiKey')),timeoutSeconds:Number(v.get('timeout')||60),trustedPem:String(v.get('trustedPem')||'')}}});engine.settings={...settings.folders,vaultPath:settings.vaultPath,vaultName:settings.vaultPath.split(/[\\/]/).pop()};engine.requiresFull=true;engine.documents.clear();await engine.reconcile({force:true});connected=true;status='Хранилище подключено';const apiKey=form.elements.apiKey;apiKey.value='';apiKey.placeholder=settings.apiKeyConfigured?'Настроен · оставьте пустым, чтобы сохранить':'Из настроек Syncthing';binding?.toast(status);}catch(e){status=String(e.message||e);binding?.toast(status);}finally{busy=false;saveDayEdits();decorate();}}
+async function openVault(nextSettings){
+ settings=await invoke('settings_save',{settings:nextSettings});
+ connected=false;
+ engine.settings={...settings.folders,vaultPath:settings.vaultPath,vaultName:settings.vaultPath.split(/[\\/]/).pop()};
+ engine.requiresFull=true;
+ engine.documents.clear();
+ await engine.reconcile({force:true});
+ connected=true;
+ status='Хранилище подключено';
+}
+async function connect(form){
+ if(busy)return;
+ busy=true;paint();
+ try{
+  await engine.flush();
+  const v=new FormData(form),folders={...defaults};
+  for(const key of Object.keys(folders))if(typeof defaults[key]==='string')folders[key]=String(v.get(key)||'').trim();
+  folders.knowledgeTypes=knowledgeRulesFromForm(v);
+  new Intl.DateTimeFormat('en',{timeZone:folders.timezone}).format(new Date());
+  await openVault({vaultPath:String(v.get('vaultPath')).trim(),androidTreeUri:selectedTreeUri||settings.androidTreeUri,folders,syncthing:{enabled:v.has('syncEnabled'),url:String(v.get('syncUrl')).trim(),folderId:String(v.get('folderId')).trim(),apiKey:String(v.get('apiKey')),timeoutSeconds:Number(v.get('timeout')||60),trustedPem:String(v.get('trustedPem')||'')}});
+  const apiKey=form.elements.apiKey;
+  apiKey.value='';
+  apiKey.placeholder=settings.apiKeyConfigured?'Настроен · оставьте пустым, чтобы сохранить':'Из настроек Syncthing';
+  binding?.toast(status);
+ }catch(e){status=String(e.message||e);binding?.toast(status);}
+ finally{busy=false;saveDayEdits();decorate();}
+}
+async function selectStartupVault(){
+ document.body.insertAdjacentHTML('beforeend',`<dialog id="native-vault-setup" aria-labelledby="native-vault-setup-title" aria-describedby="native-vault-setup-help">
+  <h1 id="native-vault-setup-title">Выберите хранилище</h1>
+  <p id="native-vault-setup-help">Сначала выберите, где будут храниться данные Sloy.</p>
+  <div class="vault-setup-actions">
+   <button type="button" class="primary-button" data-vault-choice="default" autofocus>Использовать папку по умолчанию</button>
+   <button type="button" class="secondary-button" data-vault-choice="other">Выбрать другую папку</button>
+  </div>
+  <p class="form-note">Sloy создаст папку в корне внутреннего хранилища. При первом подключении Android запросит доступ ко всем файлам.</p>
+  <p class="form-note vault-setup-status" role="status"></p>
+ </dialog>`);
+ const dialog=$('#native-vault-setup');
+ const message=dialog.querySelector('[role="status"]');
+ message.textContent=settings.vaultPath?status:'';
+ dialog.addEventListener('cancel',event=>event.preventDefault());
+ dialog.showModal();
+ await new Promise(resolve=>{
+  dialog.addEventListener('click',async event=>{
+   const button=event.target.closest('[data-vault-choice]');
+   if(!button||busy)return;
+   busy=true;
+   const buttons=dialog.querySelectorAll('button');
+   buttons.forEach(control=>control.disabled=true);
+   message.textContent='Подключение хранилища…';
+   try{
+    const selection=await invoke(button.dataset.vaultChoice==='default'?'vault_default':'vault_pick');
+    if(!selection){message.textContent='';return;}
+    await openVault({...settings,vaultPath:selection.path,androidTreeUri:selection.androidTreeUri??null});
+    dialog.close();
+    resolve();
+   }catch(error){message.textContent=String(error.message||error);}
+   finally{busy=false;buttons.forEach(control=>control.disabled=false);if(!connected)button.focus();}
+  });
+ });
+ dialog.remove();
+}
 function dirtyModal(){const modal=$('#modal');if(!modal.open)return false;const form=modal.querySelector('form');if(!form)return true;if(!form.reportValidity())return true;form.requestSubmit();return modal.open;}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-native-sync],[data-native-browse],[data-native-rebuild],[data-native-recovery],[data-native-retry],[data-native-reload]');if(b){e.preventDefault();e.stopImmediatePropagation();(async()=>{if(b.hasAttribute('data-native-browse')){const path=await invoke('vault_pick');if(path){$('#native-vault').value=path.path;selectedTreeUri=path.androidTreeUri||null;}}else if(b.hasAttribute('data-native-recovery'))await recovery();else if(b.hasAttribute('data-native-reload')){engine.discardPending();$('#modal').close();await check();}else if(b.hasAttribute('data-native-retry')){engine.failure=null;$('#modal').close();await check({force:true});}else if(!dirtyModal())await check({force:true,rebuild:b.hasAttribute('data-native-rebuild')});})().catch(error=>binding?.toast(String(error)));return;}const link=e.target.closest('a[href^="obsidian:"]');if(link){e.preventDefault();e.stopImmediatePropagation();engine.flush().then(()=>invoke('open_obsidian',{url:link.href})).catch(e=>binding?.toast(String(e)));return;}if(!connected&&e.target.closest('[data-action="new-task"],[data-action="new-project"],[data-action="new-area"],[data-action="new-habit"],.tree-create,[data-action="import"]')){e.preventDefault();e.stopImmediatePropagation();binding?.toast('Сначала подключите хранилище в настройках');}},true);
 const vaultWriteActions=new Set(['new-task','edit-task','select-task','toggle-done','edit-project','activate-task','edit-repeat','clear-wellbeing','import']);
@@ -81,10 +143,17 @@ document.addEventListener('click',event=>{
 document.addEventListener('change',e=>{if(e.target.name==='knowledgeMode')updateKnowledgeMode(e.target.form);else if(e.target.name==='syncEnabled')updateSyncSettings(e.target.form);});
 document.addEventListener('invalid',e=>{if(e.target.form?.id!=='native-settings-form')return;for(let parent=e.target.parentElement;parent;parent=parent.parentElement)if(parent.tagName==='DETAILS')parent.open=true;if(e.target.closest('#native-sync-options'))$('#native-sync-options').hidden=false;},true);
 document.addEventListener('submit',e=>{if(e.target.id==='native-settings-form'){e.preventDefault();e.stopImmediatePropagation();connect(e.target);}},true);
-window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!dirtyModal())check({force:true});}});
+window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(binding&&!dirtyModal())check({force:true});}});
 settings=await invoke('settings_get');settings.folders={...defaults,...settings.folders};settings.syncthing??={};
 engine=new VaultEngine({commit:(changes,vaultPath)=>invoke('vault_commit',{changes,vaultPath}),scan:async(rebuild,initial,vaultPath)=>{const report=await invoke('vault_scan',{rebuild,initial,vaultPath});report.knowledge[date()]??=0;return report;},sync:()=>invoke('syncthing_sync').catch(e=>({status:'error',message:String(e)}))},{settings:{...settings.folders,vaultPath:settings.vaultPath,vaultName:settings.vaultPath.split(/[\\/]/).pop()},today:date,onState:state=>{if(binding&&!engine.pending){applyDayEdits(state);binding.set(state,{refresh:!editingDayField()});}},onStatus:(kind,data)=>{if(kind==='ready'&&data.sync)synced=data.sync.status==='complete'&&!data.report.conflicts?.length;else if(kind==='ready'){if(data.report.conflicts?.length)synced=false;}else if(kind!=='checking')synced=false;if(kind==='ready')lastReport=data.report;status=kind==='error'?String(data.message||data):kind==='ready'?data.sync?.message||`Сверено файлов: ${data.report.filesChecked}; перечитано: ${data.report.filesRead}`:kind==='saving'?'Сохранение…':kind==='saved'?'Изменения записаны':kind==='checking'?'Синхронизация и сверка…':kind;if(kind==='ready'&&data.report.conflicts?.length)status+=' · Конфликтных копий: '+data.report.conflicts.length;paint();}});
-if(settings.vaultPath){try{await engine.reconcile({force:true});connected=true;}catch(e){status=String(e.message||e);}}if(!connected)history.replaceState(null,'','?page=settings');
+if(settings.vaultPath.trim()){
+ try{await engine.reconcile({force:true});connected=true;}
+ catch(e){status=String(e.message||e);}
+}
+if(!connected){
+ if(settings.requiresVaultSetup)await selectStartupVault();
+ else history.replaceState(null,'','?page=settings');
+}
 await import('./app.js');
 function checkWhenIdle(){
  if(connected&&!document.hidden&&!$('#modal').open&&!document.activeElement?.matches('input,textarea,select'))check();

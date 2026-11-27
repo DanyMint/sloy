@@ -49,7 +49,9 @@ fn redact(mut s: Settings) -> serde_json::Value {
 }
 #[tauri::command]
 fn settings_get(n: State<Native>) -> Result<serde_json::Value, String> {
-    Ok(redact(n.settings.lock().map_err(error)?.clone()))
+    let mut settings = redact(n.settings.lock().map_err(error)?.clone());
+    settings["requiresVaultSetup"] = cfg!(target_os = "android").into();
+    Ok(settings)
 }
 #[tauri::command]
 fn settings_save(n: State<Native>, mut settings: Settings) -> Result<serde_json::Value, String> {
@@ -154,6 +156,26 @@ async fn vault_commit(
     .await
     .map_err(error)?
 }
+#[cfg(target_os = "android")]
+struct DefaultVault(tauri::plugin::PluginHandle<tauri::Wry>);
+
+#[tauri::command]
+async fn vault_default(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "android")]
+    {
+        app.state::<DefaultVault>()
+            .0
+            .run_mobile_plugin_async("prepare", ())
+            .await
+            .map_err(error)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Err("Папка по умолчанию доступна на Android".into())
+    }
+}
+
 #[tauri::command]
 async fn vault_pick(app: tauri::AppHandle) -> Result<Option<serde_json::Value>, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -206,7 +228,19 @@ fn open_obsidian(app: tauri::AppHandle, url: String) -> Result<(), String> {
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(
+        tauri::plugin::Builder::<_, ()>::new("default-vault")
+            .setup(|app, api| {
+                let handle =
+                    api.register_android_plugin("app.sloy.journal", "DefaultVaultPlugin")?;
+                app.manage(DefaultVault(handle));
+                Ok(())
+            })
+            .build(),
+    );
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_android_fs::builder().build())
@@ -235,6 +269,7 @@ pub fn run() {
             settings_get,
             settings_save,
             vault_pick,
+            vault_default,
             vault_scan,
             vault_commit,
             syncthing_sync,

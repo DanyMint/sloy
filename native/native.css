@@ -6,8 +6,6 @@
 .settings-connection[data-connected="true"]::before{background:var(--green)}
 #native-sync-options{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
 #native-sync-options>.form-note{margin-top:0}
-.settings-form-footer{margin:2px 0 24px}
-.settings-form-footer .settings-actions{margin-top:0}
 #settings-view .settings-service{padding-top:0;padding-bottom:0}
 #settings-view .settings-service>.settings-details{border:0;margin:0}
 .settings-service>.settings-details>summary{padding:18px 0;min-height:58px}
@@ -33,3 +31,12 @@
 .vault-setup-actions{display:grid;gap:10px;margin-top:20px}
 .vault-setup-actions button{min-height:44px}
 .vault-setup-status:empty{display:none}
+
+.native-settings-tabs{display:flex;gap:8px;border-bottom:1px solid var(--line);margin:0 0 16px}
+.native-settings-tabs button{color:var(--secondary);background:transparent;border:0;border-bottom:2px solid transparent;min-height:44px;padding:7px 12px;font:inherit;text-align:left;cursor:pointer}
+.native-settings-tabs button[aria-pressed=true]{color:var(--accent-text);border-bottom-color:var(--accent-text);font-weight:600}
+.native-settings-actions{margin-top:16px}
+.native-settings-actions p:empty{display:none}
+.native-sync-actions{border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
+.native-sync-actions p{margin:0 0 8px}
+@media(max-width:600px){.native-settings-actions button,.native-sync-actions button{width:100%;min-height:44px}}

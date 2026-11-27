@@ -28,7 +28,7 @@ function saveDayEdits(){
  engine.save(state);
  dayEdits.clear();
 }
-const native={editDayField,get state(){return engine.state;},get settings(){return settings;},save:state=>{if(!connected){binding?.toast('Сначала подключите хранилище');return false;}engine.save(state);return true;},bind:value=>binding=value,rendered:context=>{lastContext=context;decorate();}};window.nativeSloy=native;
+const native={editDayField,get canWrite(){return connected&&!busy;},get state(){return engine.state;},get settings(){return settings;},save:state=>{if(!connected){binding?.toast('Сначала подключите хранилище');return false;}engine.save(state);return true;},bind:value=>binding=value,rendered:context=>{lastContext=context;decorate();}};window.nativeSloy=native;
 function paint(){
  document.querySelectorAll('#native-vault-form button,#native-sync-form button,[data-native-rebuild],[data-native-recovery]').forEach(b=>b.disabled=busy);
  document.querySelectorAll('[data-native-sync]').forEach(b=>{b.disabled=busy||!connected;b.setAttribute('aria-label',synced?'Синхронизировано':'Синхронизировать');const icon=b.querySelector('.nav-symbol');if(icon&&b.dataset.synced!==String(synced)){icon.innerHTML=synced?syncDoneIcon:syncIcon;b.dataset.synced=String(synced);}});
@@ -173,7 +173,7 @@ document.addEventListener('click',event=>{
 });
 function dirtyModal(){const modal=$('#modal');if(!modal.open)return false;const form=modal.querySelector('form');if(!form)return true;if(!form.reportValidity())return true;form.requestSubmit();return modal.open;}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-native-sync],[data-native-browse],[data-native-rebuild],[data-native-recovery],[data-native-retry],[data-native-reload]');if(b){e.preventDefault();e.stopImmediatePropagation();(async()=>{if(b.hasAttribute('data-native-browse')){const path=await invoke('vault_pick');if(path){$('#native-vault').value=path.path;selectedVault=path;}}else if(b.hasAttribute('data-native-recovery'))await recovery();else if(b.hasAttribute('data-native-reload')){engine.discardPending();$('#modal').close();await check();}else if(b.hasAttribute('data-native-retry')){engine.failure=null;$('#modal').close();await check({force:true});}else if(!dirtyModal())await check({force:true,rebuild:b.hasAttribute('data-native-rebuild')});})().catch(error=>binding?.toast(String(error)));return;}const link=e.target.closest('a[href^="obsidian:"]');if(link){e.preventDefault();e.stopImmediatePropagation();engine.flush().then(()=>invoke('open_obsidian',{url:link.href})).catch(e=>binding?.toast(String(e)));return;}if(!connected&&e.target.closest('[data-action="new-task"],[data-action="new-project"],[data-action="new-area"],[data-action="new-habit"],.tree-create')){e.preventDefault();e.stopImmediatePropagation();binding?.toast('Сначала подключите хранилище в настройках');}},true);
-const vaultWriteActions=new Set(['new-task','edit-task','select-task','toggle-done','edit-project','activate-task','edit-repeat','clear-wellbeing']);
+const vaultWriteActions=new Set(['new-task','new-subtask','edit-task','select-task','toggle-done','edit-project','activate-task','edit-repeat','clear-wellbeing']);
 const vaultDialogActions=new Set(['confirm-freeze','confirm-unfreeze','today-new-task','today-pick']);
 document.addEventListener('click',event=>{
  if(connected&&!busy)return;

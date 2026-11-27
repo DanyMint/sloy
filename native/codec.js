@@ -1,3 +1,4 @@
+import {taskAncestors} from '../dist/task-hierarchy.js';
 import {parseDocument} from 'yaml';
 import {normalizeState} from '../dist/domain.js';
 import {validateBackup,period,hash} from '../dist/model.js';
@@ -50,11 +51,21 @@ export function ruleOf(task){
  return r+(task.repeatFrom==='completion'?' when done':'');
 }
 const taskFields=['estimate','archived','cancelledAt','seriesId','nextOccurrenceId','previousOccurrenceId','repeatMissed','repeatAnchor','skipped','skippedAt','someday','kanbanColumnId','kanbanOrder'];
+const indentation=line=>[...line.match(/^[ \t]*/)[0]].reduce((width,char)=>width+(char==='\t'?4-width%4:1),0);
 export function parseTasks(note,owner){
- const rows=[],lines=note.body.split('\n');let fence=null;
+ const rows=[],stack=[],lines=note.body.split('\n');let fence=null;
  for(let i=0;i<lines.length;i++){
-  const line=lines[i],f=line.match(/^\s*(`{3,}|~{3,})/);if(f){if(!fence)fence=f[1][0];else if(f[1][0]===fence)fence=null;continue;}if(fence)continue;
-  const m=line.match(/^(\s*[-*+]\s+)\[([^\]])\]\s+(.+)$/);if(!m)continue;
+  const line=lines[i],indent=indentation(line),f=line.match(/^\s*(`{3,}|~{3,})/);
+  if(fence){if(f?.[1][0]===fence)fence=null;continue;}
+  if(line.trim())while(stack.length&&indent<stack.at(-1).contentIndent)stack.pop().end=i;
+  if(f){fence=f[1][0];continue;}
+  const list=line.match(/^([ \t]*(?:[-*+]|\d+[.)])[ \t]+)/);
+  if(!list)continue;
+  const m=line.match(/^([ \t]*(?:[-*+]|\d+[.)])[ \t]+)\[([^\]])\][ \t]+(.+)$/);
+  const parent=stack.findLast(item=>item.task)?.task;
+  const entry={line:i,end:lines.length,indent,contentIndent:indentation(list[1].replace(/\S/g,' '))};
+  stack.push(entry);
+  if(!m)continue;
   const raw=m[3],metaRaw=raw.match(/\[sloy_meta::\s*([^\]]+)\]/)?.[1];let extras={};
   if(metaRaw){try{extras=JSON.parse(decodeURIComponent(metaRaw));}catch{throw new Error(note.path+': повреждены свойства задачи');}}
   const block=raw.match(/\^([\w-]+)\s*$/)?.[1]||'',tasksId=raw.match(/🆔\s*([A-Za-z0-9]+)/u)?.[1]||'',id=raw.match(/\[sloy_id::\s*([^\]]+)\]/)?.[1]?.trim()||tasksId||'task-'+hash(note.path+'#'+(block||i+':'+raw));
@@ -64,8 +75,11 @@ export function parseTasks(note,owner){
   const preserved=(raw.match(/[⏳🛫➕]\s*\d{4}-\d{2}-\d{2}/gu)||[]).join(' ');
   if(!title)continue;
   const task={id,title,project:owner.kind==='project'?owner.name:'Входящие',projectId:owner.kind==='project'?owner.id:null,areaId:owner.kind==='area'?owner.id:owner.areaId||null,estimate:0,due,done:/x/i.test(m[2]),cancelled:m[2]==='-',completedAt,source:note.path,blockId:block||'sloy-'+id.replace(/[^a-zA-Z0-9-]/g,''),archived:false,recurrence:'none',...Object.fromEntries(taskFields.filter(k=>Object.hasOwn(extras,k)).map(k=>[k,extras[k]])),...(repeat?parseRule(repeat):{}),nativeTaskId:tasksId||id.replace(/[^a-zA-Z0-9]/g,''),nativePreserved:preserved};
-  rows.push({line:i,raw:line,prefix:m[1],marker:m[2],task});
+  if(parent)task.parentTaskId=parent.id;
+  Object.assign(entry,{raw:line,prefix:m[1],marker:m[2],task});
+  rows.push(entry);
  }
+ for(const row of rows)while(row.end>row.line+1&&!lines[row.end-1].trim())row.end--;
  return rows;
 }
 export function decodeVault(documents,settings={}){
@@ -110,7 +124,9 @@ export function encodeVault(state,decoded,settings={}){
  const entityNotes=new Map();
  for(const [kind,items,folder] of [['area',state.areas,cfg.areas],['project',state.projects,cfg.projects],['habit',state.habits,cfg.habits]])for(const e of items)entityNotes.set(e.id,{kind,e,note:make(e.id,folder,e.name)});
  let inbox;
- const tasksByPath=new Map();for(const t of state.tasks){let owner=entityNotes.get(t.projectId||t.areaId);if(!owner){inbox??=parseNote(decoded.notes.find(n=>n.path===cfg.areas+'/Inbox.md')||{path:cfg.areas+'/Inbox.md',text:'---\nsloy_type: area\nsloy_id: sloy-inbox\nname: Inbox\n---\n# Inbox\n',hash:null});owner={note:inbox};}t.source=owner.note.path;paths.set(t.id,t.source);if(!tasksByPath.has(t.source))tasksByPath.set(t.source,[]);tasksByPath.get(t.source).push(t);}
+ const taskIndex=new Map(state.tasks.map(task=>[task.id,task]));
+ const ancestors=new Map(state.tasks.map(task=>[task.id,taskAncestors(task,taskIndex)]));
+ const tasksByPath=new Map();for(const t of state.tasks){const root=ancestors.get(t.id).at(-1)||t;let owner=entityNotes.get(root.projectId||root.areaId);if(!owner){inbox??=parseNote(decoded.notes.find(n=>n.path===cfg.areas+'/Inbox.md')||{path:cfg.areas+'/Inbox.md',text:'---\nsloy_type: area\nsloy_id: sloy-inbox\nname: Inbox\n---\n# Inbox\n',hash:null});owner={note:inbox};}t.source=owner.note.path;paths.set(t.id,t.source);if(!tasksByPath.has(t.source))tasksByPath.set(t.source,[]);tasksByPath.get(t.source).push(t);}
  for(const {kind,e,note} of entityNotes.values()){
   const parent=kind==='project'?paths.get(e.parentId||e.areaId):null;
   let fields={sloy_type:kind,sloy_id:e.id,name:e.name,icon:e.icon||'',description:e.description||''};
@@ -120,13 +136,81 @@ export function encodeVault(state,decoded,settings={}){
   writes.set(note.path,{path:note.path,expectedHash:note.hash??null,text:patched(note,fields)});
  }
  if(inbox&&!writes.has(inbox.path))writes.set(inbox.path,{path:inbox.path,expectedHash:inbox.hash??null,text:patched(inbox,{})});
- const oldOwners=new Set([...decoded.bindings.values()].filter(b=>b.kind==='task').map(b=>b.note.path));
+ const oldTasks=new Map([...decoded.bindings].filter(([,binding])=>binding.kind==='task'));
+ const moved=new Set();
+ for(const task of state.tasks){
+  if([task,...ancestors.get(task.id)].some(item=>{
+   const old=oldTasks.get(item.id);
+   return !old||old.note.path!==task.source||(old.row.task.parentTaskId||null)!==(item.parentTaskId||null);
+  }))moved.add(task.id);
+ }
+ const children=new Map(),roots=new Map();
+ for(const task of state.tasks)if(moved.has(task.id)){
+  const group=task.parentTaskId?children:roots,key=task.parentTaskId||task.source;
+  if(!group.has(key))group.set(key,[]);
+  group.get(key).push(task);
+ }
+ const attachments=new Map(),rowsByPath=new Map();
+ for(const {note,row} of oldTasks.values()){
+  if(!rowsByPath.has(note.path))rowsByPath.set(note.path,[]);
+  rowsByPath.get(note.path).push(row);
+ }
+ for(const note of decoded.notes){
+  const rows=rowsByPath.get(note.path);
+  if(!rows?.some(row=>moved.has(row.task.id)))continue;
+  const lines=note.body.split('\n'),stack=[];
+  const starts=new Map(rows.map(row=>[row.line,row]));
+  for(const [index,line] of lines.entries()){
+   while(stack.length&&index>=stack.at(-1).end)stack.pop();
+   const row=starts.get(index);
+   if(row){stack.push(row);continue;}
+   const owner=stack.at(-1);
+   if(!owner||!moved.has(owner.task.id))continue;
+   if(!attachments.has(owner.task.id))attachments.set(owner.task.id,[]);
+   attachments.get(owner.task.id).push({line,index});
+  }
+ }
+ function branch(task,indent){
+  const oldBinding=oldTasks.get(task.id),old=oldBinding?.row;
+  const prefix=(old?.prefix||'- ').trimStart();
+  const raw=old&&sameTask(task,old.task)&&old.raw.includes('[sloy_id::')?old.raw:taskLine(task,old);
+  const body=(attachments.get(task.id)||[]).map(({line,index})=>({
+   index,lines:[line.trim()?' '.repeat(Math.max(0,indent+indentation(line)-old.indent))+line.trimStart():line]
+  }));
+  for(const child of children.get(task.id)||[]){
+   const previous=oldTasks.get(child.id);
+   const index=previous?.note===oldBinding?.note&&previous?.row.task.parentTaskId===task.id?previous.row.line:Infinity;
+   body.push({index,lines:branch(child,indent+Math.max(4,prefix.length))});
+  }
+  return [' '.repeat(indent)+raw.trimStart(),...body.sort((a,b)=>a.index-b.index).flatMap(part=>part.lines)];
+ }
+ const oldOwners=new Set([...oldTasks.values()].map(b=>b.note.path));
  for(const path of new Set([...tasksByPath.keys(),...oldOwners])){
   const draft=writes.get(path),base=decoded.notes.find(n=>n.path===path)||parseNote({path,text:draft?.text||'',hash:null}),note=draft?parseNote({...base,text:draft.text}):base;
-  const lines=note.body.split('\n'),rows=[...decoded.bindings.values()].filter(b=>b.kind==='task'&&b.note.path===path).map(b=>b.row),byId=new Map((tasksByPath.get(path)||[]).map(t=>[t.id,t])),used=new Set();
-  for(const row of rows){const t=byId.get(row.task.id);if(!t)lines[row.line]='';else{used.add(t.id);lines[row.line]=sameTask(t,row.task)?row.raw:taskLine(t,row);if(!row.raw.includes('[sloy_id::'))lines[row.line]=taskLine(t,row);}}
-  for(const t of byId.values())if(!used.has(t.id))lines.push(taskLine(t));
-  writes.set(path,{path,expectedHash:base.hash??null,text:patched(note,{},lines.join('\n'))});
+  const lines=note.body.split('\n'),rows=rowsByPath.get(path)||[];
+  const insertions=new Map();
+  for(const row of rows){
+   const task=taskIndex.get(row.task.id);
+   if(!task||moved.has(task.id)){
+    lines[row.line]='';
+    for(const {index} of attachments.get(row.task.id)||[])lines[index]='';
+    continue;
+   }
+   lines[row.line]=sameTask(task,row.task)&&row.raw.includes('[sloy_id::')?row.raw:taskLine(task,row);
+   const nested=children.get(task.id);
+   if(nested){
+    const insertion=insertions.get(row.end)||[];
+    insertion.push({indent:row.indent,lines:nested.flatMap(child=>branch(child,Math.max(row.indent+4,row.contentIndent)))});
+    insertions.set(row.end,insertion);
+   }
+  }
+  const output=[];
+  for(let index=0;index<=lines.length;index++){
+   for(const insertion of (insertions.get(index)||[]).sort((a,b)=>b.indent-a.indent))output.push(...insertion.lines);
+   if(index<lines.length)output.push(lines[index]);
+  }
+  output.push(...(roots.get(path)||[]).flatMap(task=>branch(task,0)));
+  writes.set(path,{path,expectedHash:base.hash??null,text:patched(note,{},output.join('\n'))});
  }
  for(const [id,b] of decoded.bindings){if(['area','project','habit'].includes(b.kind)&&!entityNotes.has(id)){
    // Keep moved tasks in their new owners; the old note goes to the recoverable vault trash.

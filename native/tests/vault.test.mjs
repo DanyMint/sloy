@@ -1,7 +1,8 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {decodeVault,encodeVault,finalizeKnowledge,parseRule,ruleOf,emptyState} from '../codec.js';
 import {VaultEngine} from '../engine.js';
-import {validateBackup} from '../../dist/model.js';
+import {validateBackup,comparison,freezePlan,period,getPlan} from '../../dist/model.js';
+import {setTaskParent,setTaskStatus} from '../../dist/domain.js';
 const document=(path,text)=>({path,text,hash:'hash-'+path});
 const fixture=()=>[
  document('Areas/Work.md','---\nsloy_type: area\nsloy_id: work\nname: Работа\ncustom: keep-me\n---\n# Работа\n\nСвободный текст.\n'),
@@ -22,3 +23,52 @@ test('reconciliation is transactional when a parent temporarily disappears durin
 test('force synchronization precedes scan and save errors never enter synchronization',async()=>{const order=[],engine=new VaultEngine({sync:async()=>{order.push('sync');return {status:'complete'};},scan:async()=>{order.push('scan');return {full:true,documents:fixture(),knowledge:{},deletedPaths:[]};},commit:async()=>order.push('commit')});await engine.reconcile({force:true});assert.deepEqual(order,['sync','scan']);validateBackup(engine.state);});
 
 test('unchanged daily Knowledge count does not produce a periodic rewrite',()=>{const s=emptyState();finalizeKnowledge(s,{'2026-11-01':2},'2026-11-01','first');finalizeKnowledge(s,{'2026-11-01':2},'2026-11-01','second');assert.equal(s.knowledgeFacts['2026-11-01'].updatedAt,'first');});
+
+test('nested checkboxes keep identity when reparented and move with their Markdown branch',()=>{
+ const docs=fixture(),note=docs.find(item=>item.path==='Projects/Child.md');
+ note.text+='\n- [ ] Release [sloy_id:: release] ^release\n    - Explanation\n    - [ ] Build [sloy_id:: build] ^build\n        - [ ] Sign [sloy_id:: sign] ^sign\n        Build instructions\n    Tail of release\n- [ ] Other [sloy_id:: other] ^other\n';
+ const decoded=decodeVault(docs),state=structuredClone(decoded.state),get=id=>state.tasks.find(task=>task.id===id);
+ assert.equal(get('build').parentTaskId,'release');
+ assert.equal(get('sign').parentTaskId,'build');
+ assert.equal(get('other').parentTaskId,undefined);
+ get('build').parentTaskId='other';
+ const reparented=apply(docs,encodeVault(state,decoded)),next=decodeVault(reparented);
+ assert.equal(next.state.tasks.find(task=>task.id==='build').parentTaskId,'other');
+ assert.equal(next.state.tasks.find(task=>task.id==='sign').parentTaskId,'build');
+ const moved=structuredClone(next.state),other=moved.tasks.find(task=>task.id==='other');
+ other.projectId='root';
+ const finalDocs=apply(reparented,encodeVault(moved,next)),final=decodeVault(finalDocs);
+ for(const id of ['other','build','sign']){
+  const task=final.state.tasks.find(item=>item.id===id);
+  assert.equal(task.projectId,'root');
+  assert.equal(task.blockId,id);
+ }
+ const original=finalDocs.find(item=>item.path===note.path).text;
+ assert.match(original,/Explanation/);
+ assert.match(original,/Tail of release/);
+ assert.doesNotMatch(original,/sloy_id:: build|Build instructions/);
+ const destination=finalDocs.find(item=>item.path==='Projects/Root.md').text;
+ assert.match(destination,/\^sign\n        Build instructions/);
+
+ assert.equal(encodeVault(final.state,final).writes.length,0);
+});
+
+test('subtasks inherit ownership, reject cycles and keep independent completion and estimates',()=>{
+ const docs=fixture(),note=docs.find(item=>item.path==='Projects/Child.md');
+ note.text+='\n- [ ] Parent [sloy_id:: parent] ^parent\n    - [ ] Child [sloy_id:: subtask] ^subtask\n';
+ const {state}=decodeVault(docs);
+ const parent=state.tasks.find(task=>task.id==='parent'),child=state.tasks.find(task=>task.id==='subtask');
+ parent.estimate=5;child.estimate=2;
+ assert.throws(()=>setTaskParent(state,parent,'task',child.id),/вне этой ветки/);
+ setTaskParent(state,parent,'project','root');
+ assert.equal(child.projectId,'root');
+ assert.equal(child.areaId,'work');
+ const planPeriod=period('week','2026-11-01');
+ getPlan(state,planPeriod).selected=[parent.id,child.id];
+ assert.equal(comparison(state,planPeriod).hours,2);
+ freezePlan(state,planPeriod);
+ setTaskStatus(state,parent.id,'done','2026-11-01');
+ assert.equal(child.done,false);
+ setTaskParent(state,child,'project','root');
+ assert.equal(comparison(state,planPeriod).hours,2);
+});

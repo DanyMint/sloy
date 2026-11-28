@@ -73,7 +73,7 @@ test('only opt-in lists have a search and selection status and menu hints use th
   assert.equal(vimMenuKey(command),key);
   assert.match(vimHelpHTML(true),new RegExp('<kbd>'+key+'</kbd>'));
  }
- assert.match(vimHelpHTML(),/<kbd>Space e<\/kbd>/);
+ assert.match(vimHelpHTML(),/<kbd>Space<\/kbd> <kbd>e<\/kbd>/);
  assert.match(vimHelpHTML(),/Дерево проектов/);
 });
 

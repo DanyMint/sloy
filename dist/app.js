@@ -1,3 +1,6 @@
+import {showWorkspaceSearch,workspaceSearchResults} from './workspace-search.js';
+import {initVimProjectTree} from './vim-project-tree.js';
+import {initVimNavigation,readVimPreference,saveVimPreference,vimHelpHTML,vimMenuKey,vimTaskTargets} from './vim-navigation.js';
 import {initTaskContextMenu,chooseTaskDestination} from './task-context-menu.js';
 import {taskMenuTargets,completionTargets,completeTasks,taskPlanOptions,planTasks,taskBranchSelection,movableRoots,movingToScope,moveTaskRoots} from './task-commands.js';
 import {createUndoHistory} from './undo-history.js';
@@ -20,7 +23,7 @@ import {journalPlan as getPlan,freezeJournal as freezePlan,weeklyTasks,selectJou
 import {focusPlannerHTML,focusCount,yearStatsHTML,quarterStatsHTML,taskChartHTML} from './journal-pages.js';
 import {saveHabit,deleteHabit,setHabitValue,incrementHabit,saveDayLog,sleepMinutes,durationLabel,validDay} from './wellness.js';
 import {diaryWeekHTML,adjacentPeriodsHTML,plannerDiaryHTML,habitForm,habitDeleteConfirmation,habitEntryForm,analyticsHTML} from './wellness-pages.js';
-import {normalizeState,newId,saveArea,saveProject,setTaskParent,setTaskStatus,projectArea,materializeRepeats,isTaskActive,setProjectArchived,deleteProject,setProjectCompleted,isProjectAvailable,rememberTaskListOrder,reorderTaskList} from './domain.js';
+import {normalizeState,newId,saveArea,saveProject,projectPathDraft,setTaskParent,setTaskStatus,projectArea,materializeRepeats,isTaskActive,setProjectArchived,deleteProject,setProjectCompleted,isProjectAvailable,rememberTaskListOrder,reorderTaskList} from './domain.js';
 import {entityForm,taskForm,statusBadge,subtasksHTML} from './pages.js';
 import {STORAGE_KEY,clone,today,dateOf,addDays,period,shiftPeriod,comparison,tasksMarkdown,planMarkdown,validateBackup,seedState} from './model.js';
 const $=s=>document.querySelector(s);
@@ -34,7 +37,7 @@ const query=new URLSearchParams(location.search);
 let type=['day','week','quarter','year'].includes(query.get('view'))?query.get('view'):query.get('view')==='month'?'quarter':'day';
 if(query.get('page')==='diary')type='day';
 let anchor=/^\d{4}-\d{2}-\d{2}$/.test(query.get('date')||'')&&!Number.isNaN(dateOf(query.get('date')).getTime())?query.get('date'):today();
-let timeFormat=readTimeFormat();
+let timeFormat=readTimeFormat(),vimEnabled=readVimPreference();
 let weeklyView=readWeeklyView(),weeklyScope='all';
 let search='',filter='all',toastTimer,editingId=null;
 let page=['today','planner','zones','projects','areas','habits','analytics','settings'].includes(query.get('page'))?query.get('page'):'planner',entityId=query.get('entity')||'';
@@ -51,32 +54,38 @@ try{for(const key of Object.keys(collectionViews))if(localStorage.getItem('kontu
 const desktopTasks={selection:new Set(),modes:new Map()};
 const desktopPointer=matchMedia('(any-pointer: fine)');
 const undoHistory=createUndoHistory();
-const collectionContext=()=>({page,entityId,layout:scopeLayouts[entityId]||'table',desktopTasks:desktopPointer.matches?desktopTasks:null,selection:desktopTasks.selection});
-function navigatePage(next,id=''){desktopTasks.selection.clear();mobileShell.close();page=next;entityId=id;history.replaceState(null,'','?page='+page+(id?'&entity='+encodeURIComponent(id):'')+'&view='+type+'&date='+(page==='habits'?logDate:page==='analytics'?analyticsContext.anchor:anchor));render();window.scrollTo({top:0,behavior:'instant'});}
+const collectionContext=()=>({page,entityId,layout:scopeLayouts[entityId]||'table',desktopTasks:desktopPointer.matches||vimEnabled?desktopTasks:null,selection:desktopTasks.selection,vim:vimEnabled,drag:desktopPointer.matches});
+function navigatePage(next,id=''){vim.resetPrefix();vim.endRange();desktopTasks.selection.clear();mobileShell.close();page=next;entityId=id;history.replaceState(null,'','?page='+page+(id?'&entity='+encodeURIComponent(id):'')+'&view='+type+'&date='+(page==='habits'?logDate:page==='analytics'?analyticsContext.anchor:anchor));render();window.scrollTo({top:0,behavior:'instant'});}
+const projectCatalog=()=>page==='projects'&&!entityId;
 function renderSidebar(){
+ const treeBefore=vimTree.snapshot();
  const tree=sidebarTreeHTML(state,{page,entityId,expanded:treeExpanded});$('#sidebar-tree').innerHTML=tree;$('#zones-tree').innerHTML=tree;
+ for(const nav of [$('#sidebar-tree'),$('#zones-tree')])nav.tabIndex=-1;
+ vimTree.restore(treeBefore);
  document.querySelectorAll('#page-nav [data-page],.sidebar-system [data-page],#mobile-nav [data-page],#mobile-menu [data-page]').forEach(b=>{const active=b.dataset.page===page||!!b.closest('#mobile-nav')&&b.dataset.page==='zones'&&['areas','projects'].includes(page);b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
  mobileShell.sync(page);
 }
 function restoreSections(){document.querySelectorAll('[data-collapse-key]').forEach(e=>{if(Object.hasOwn(collapsedSections,e.dataset.collapseKey))e.open=collapsedSections[e.dataset.collapseKey];});}
 function render(){
+ const vimBefore=vim.snapshot();
  const restoreMenu=closeTaskMenu(false);
  normalizeState(state);if(materializeRepeats(state,today()))persist({track:false});renderSidebar();
- $('#settings-view').hidden=page!=='settings';$('#zones-view').hidden=page!=='zones';$('#today-view').hidden=page!=='today';$('#planner-view').hidden=page!=='planner';$('#collection-view').hidden=!['projects','areas'].includes(page);$('#wellness-view').hidden=!wellnessPage();
+ $('#settings-view').hidden=page!=='settings';$('#zones-view').hidden=page!=='zones'&&!projectCatalog();$('#zones-view h1').textContent=projectCatalog()?'Проекты':'Зоны и проекты';$('#today-view').hidden=page!=='today';$('#planner-view').hidden=page!=='planner';$('#collection-view').hidden=projectCatalog()||!['projects','areas'].includes(page);$('#wellness-view').hidden=!wellnessPage();
  document.title=({today:'Сегодня',planner:'Journal',zones:'Зоны и проекты',projects:'Проект',areas:'Зона',habits:'Привычки',analytics:'Аналитика',settings:'Настройки'}[page])+' — Sloy';
  if(page==='today')$('#today-view').innerHTML=todayHTML(state);
  else if(page==='planner')renderPlanner();
- else if(page==='settings'){$('#obsidian-vault-path').value=state.vaultPath||'';renderWeeklyViewSetting();renderTimeFormat();}
+ else if(page==='settings'){$('#obsidian-vault-path').value=state.vaultPath||'';renderWeeklyViewSetting();renderTimeFormat();$('#vim-navigation').checked=vimEnabled;}
  else if(wellnessPage())renderWellness();
  else if(['projects','areas'].includes(page)){
   $('#collection-view').innerHTML=scopeHTML(state,collectionContext());
   if(desktopTasks.selection.size){
    const rowIds=new Set(scopeTaskRows().map(row=>row.dataset.taskId));
-   for(const id of desktopTasks.selection)if(!rowIds.has(id))desktopTasks.selection.delete(id);
+   for(const id of desktopTasks.selection)if(!rowIds.has(id)&&!(vimEnabled&&isVimScopeTask(state.tasks.find(task=>task.id===id))))desktopTasks.selection.delete(id);
   }
  }
  restoreSections();
  restoreMenu?.();
+ vim.refresh(vimBefore);
 }
 function renderTimeFormat(){document.querySelectorAll('input[name="time-format"]').forEach(input=>input.checked=input.value===timeFormat);}
 function renderWeeklyViewSetting(){document.querySelectorAll('input[name="weekly-source-view"]').forEach(input=>input.checked=input.value===weeklyView);}
@@ -114,8 +123,50 @@ document.addEventListener('click',event=>{
   renderPeriodSelector();$(`[data-sleep-time="${button.dataset.sleepTime}"]`).focus();
  }});
 });
-function showEntity(kind,id='',defaults={}){const entity=state[kind==='project'?'projects':'areas'].find(x=>x.id===id)||{};openModal(entityForm(state,kind,entity,defaults));}
-function saveEntity(event){event.preventDefault();const form=event.target,fields={id:form.dataset.id,name:$('#entity-name').value,icon:$('#entity-form input[name="entity-icon"]:checked')?.value||'',description:$('#entity-description').value,parentId:$('#entity-parent')?.value||null,areaId:$('#entity-area')?.value||null};try{const entity=form.dataset.kind==='project'?saveProject(state,fields):saveArea(state,fields);persist();closeModal();render();toast('Сохранено: '+entity.name);}catch(e){$('#entity-error').textContent=e.message;}}
+function showEntity(kind,id='',defaults={}){
+ const entity=state[kind==='project'?'projects':'areas'].find(x=>x.id===id)||{};
+ openModal(entityForm(state,kind,entity,defaults));
+ if(defaults.explorer){
+  const form=$('#entity-form'),input=$('#entity-name'),note=document.createElement('p');
+  form.dataset.vimProjectPath='';input.maxLength=201;
+  note.className='form-note';note.setAttribute('aria-live','polite');input.after(note);
+  const update=()=>{
+   note.textContent='Введите название или путь Проект/Подпроект.';
+   if(!input.value.includes('/'))return;
+   try{
+    const path=projectPathDraft(state,input.value,entityFormArea());
+    note.textContent=path.parent?'Создать «'+path.childName+'» в проекте «'+path.parent.name+'».':
+     'Будут созданы проект «'+path.parentName+'» и подпроект «'+path.childName+'».';
+   }catch(error){note.textContent=error.message;}
+  };
+  form.addEventListener('input',update);form.addEventListener('change',update);update();
+  input.focus();
+ }
+}
+function entityFormArea(){return $('#entity-area')?.value||null;}
+function saveEntity(event){
+ event.preventDefault();
+ if(window.nativeSloy?.canWrite===false)return;
+ const form=event.target,fields={id:form.dataset.id,name:$('#entity-name').value,icon:form.querySelector('input[name="entity-icon"]:checked')?.value||'',description:$('#entity-description').value,parentId:$('#entity-parent')?.value||null,areaId:entityFormArea()};
+ try{
+  const candidate=clone(state);
+  if(form.hasAttribute('data-vim-project-path')&&fields.name.includes('/')){
+   const path=projectPathDraft(candidate,fields.name,fields.areaId);
+   const parent=path.parent||saveProject(candidate,{name:path.parentName,areaId:fields.areaId});
+   fields.name=path.childName;fields.parentId=parent.id;
+  }
+  const entity=form.dataset.kind==='project'?saveProject(candidate,fields):saveArea(candidate,fields);
+  if(!commitTaskChange(candidate))return;
+  if(form.hasAttribute('data-vim-project-path')){
+   const saved=vimTreeModalOrigin;
+   if(entity.parentId)treeExpanded['project:'+entity.parentId]=true;
+   if(entity.areaId)treeExpanded['area:'+entity.areaId]=true;
+   else treeExpanded['area:__inbox']=true;
+   if(saved)vimTreeModalOrigin={...saved,key:'project:'+entity.id};
+  }
+  closeModal();render();toast('Сохранено: '+entity.name);
+ }catch(error){$('#entity-error').textContent=error.message;}
+}
 function confirmProjectAction(id,remove=false){
  const project=state.projects.find(p=>p.id===id);if(!project)return;
  const children=state.projects.filter(p=>p.parentId===id),ids=new Set([id,...children.map(p=>p.id)]),tasks=state.tasks.filter(t=>ids.has(t.projectId)),area=state.areas.find(a=>a.id===projectArea(state,project));
@@ -147,7 +198,7 @@ function toast(message,undo=false) {
  toastTimer=setTimeout(()=>{notice.classList.remove('show');notice.querySelector('button')?.remove();},undo?8000:4200);
 }
 function current() {return period(type,anchor);}
-function navigate(nextType,nextAnchor=anchor) {mobileShell.close();page='planner';entityId='';type=nextType;anchor=nextAnchor;logDate=nextAnchor;search='';filter='all';weeklyScope='all';$('#task-search').value='';$('#task-filter').value='all';history.replaceState(null,'','?view='+type+'&date='+anchor);render();}
+function navigate(nextType,nextAnchor=anchor) {vim.resetPrefix();vim.endRange();mobileShell.close();page='planner';entityId='';type=nextType;anchor=nextAnchor;logDate=nextAnchor;search='';filter='all';weeklyScope='all';$('#task-search').value='';$('#task-filter').value='all';history.replaceState(null,'','?view='+type+'&date='+anchor);render();}
 function showPeriodJump(){openModal('<h2>Выбрать период</h2><form id="period-jump-form"><label class="form-label" for="jump-date">Дата</label><input class="field" id="jump-date" type="date" required value="'+anchor+'"><div class="modal-actions"><button type="button" class="secondary-button" data-action="close-modal">Отмена</button><button class="primary-button" type="submit">Перейти</button></div></form>');}
 function projectPill(project) {const colors={Athena:'purple','Система':'green','Обучение':'blue','Личное':'orange','Карьера':'blue'};return '<span class="project-pill" data-color="'+(colors[project]||'purple')+'">'+esc(project)+'</span>';}
 function meta(t,includeSource=false) {return projectPill(t.project)+(t.estimate?'<span>·</span><span>'+number(t.estimate)+' ч</span>':'')+(t.due?'<span>·</span><span class="due '+(!t.done&&!t.cancelled&&t.due<today()?'overdue':'')+'">'+dateFormat(t.due)+'</span>':'')+(includeSource?'<span>·</span><span>'+esc(t.source)+'</span>':'');}
@@ -246,8 +297,18 @@ function renderTasks(){
  restoreSections();
 }
 function closeWeeklyMenus(except=null){document.querySelectorAll('[data-weekly-menu],#task-filter-menu').forEach(menu=>{if(menu!==except&&(menu.id!=='task-filter-menu'||type==='week'))menu.open=false;});}
-function openModal(html){closeWeeklyMenus();$('#modal-content').innerHTML=html; if(!modal.open) modal.showModal();}
-function closeModal(){modal.close();kanbanDraft=null;}
+function openModal(html){
+ vim.resetPrefix();closeWeeklyMenus();
+ if(!modal.open){
+  const before=vim.snapshot();
+  vimTreeModalOrigin=vimTree.snapshot();
+  taskModalOrigin=null;
+  vimModalOrigin=before?.owned?before:null;
+ }
+ $('#modal-content').innerHTML=html;
+ if(!modal.open)modal.showModal();
+}
+function closeModal(){modal.close();kanbanDraft=null;if(vimModalOrigin)restoreModalFocus();}
 let editingTaskContext=null,archiveTaskContext=null;
 function showTask(id=null,defaults={}) {
   editingTaskContext=defaults.context||null;
@@ -318,12 +379,14 @@ function showExport(){const sources=[...new Set(state.tasks.filter(t=>!t.archive
 function showHelp(){openModal('<h2>Намерение + живая реальность</h2><p class="modal-description">Journal: год, квартал, неделя и день.</p><div class="help-step"><b>1</b><div><strong>Один список задач</strong><p>Год — крупные проекты в зонах. Квартал — годовые проекты или их подпроекты. Неделя — конкретные действия для квартальных целей. День — задачи из плана этой недели. Статусы задач общие.</p></div></div><div class="help-step"><b>2</b><div><strong>Зафиксируйте план</strong><p>Выберите фокус или задачи кнопкой +. Фиксация сохраняет первоначальный выбор и формулировки. На странице дня отмечайте выполнение, привычки, самочувствие и сон.</p></div></div><div class="help-step"><b>3</b><div><strong>Работайте с живыми задачами</strong><p>Меняйте названия и отмечайте выполнение. План покажет изменения. В итог попадают выполнения с датой внутри периода; работа вне плана видна отдельно.</p></div></div><div class="help-step"><b>4</b><div><strong>Завершите период</strong><p>Планирование находится в начале страницы, статистика — в конце. На дне можно записать выводы. Экспорт Markdown сохраняет фокус и исходный план со ссылками на задачи.</p></div></div><div class="hint-box">Это ручной обмен файлами, без доступа к вашему хранилищу. Данные сохраняются в браузере на этом устройстве. Резервную копию можно скачать в формате JSON.</div><label class="form-label" for="vault-name">Имя хранилища Obsidian (для открытия задач)</label><input class="field" id="vault-name" value="'+esc(state.vault||'')+'" placeholder="Например: Мой мозг"><div class="form-note">После экспорта откройте задачу в редакторе: там появится ссылка «Открыть в Obsidian».</div><div class="modal-actions"><button class="primary-button" data-action="save-settings">Понятно</button></div>');}
 document.addEventListener('click',event=>{
   closeWeeklyMenus(event.target.closest('[data-weekly-menu],#task-filter-menu'));
-  const tree=event.target.closest('[data-tree-open]');if(tree){clearTimeout(treeClickTimer);if(event.detail===0||matchMedia('(max-width:680px)').matches)navigatePage(tree.dataset.treeOpen==='area'?'areas':'projects',tree.dataset.id);else if(event.detail===1)treeClickTimer=setTimeout(()=>navigatePage(tree.dataset.treeOpen==='area'?'areas':'projects',tree.dataset.id),320);return;}
+  const tree=event.target.closest('[data-tree-open]');if(tree){clearTimeout(treeClickTimer);if(event.detail===0||matchMedia('(max-width:680px)').matches){navigatePage(tree.dataset.treeOpen==='area'?'areas':'projects',tree.dataset.id);if(event.detail===0)focusCollection();}else if(event.detail===1)treeClickTimer=setTimeout(()=>navigatePage(tree.dataset.treeOpen==='area'?'areas':'projects',tree.dataset.id),320);return;}
   const button=event.target.closest('[data-action]');if(!button||button.disabled)return;const action=button.dataset.action,id=button.dataset.id;
   if(action==='page'){if(button.dataset.page==='today')navigatePage('today');else navigatePage(button.dataset.page);}
   else if(action==='undo-task-move')undoChange();
+  else if(action==='show-vim-help')showVimHelp(true);
   else if(action==='cycle-scope-subtasks'){
-   desktopTasks.selection.clear();
+   vim.endRange();
+   if(!vimEnabled)desktopTasks.selection.clear();
    desktopTasks.modes.set(id,((desktopTasks.modes.get(id)||0)+1)%3);
    render();
    [...document.querySelectorAll('[data-action="cycle-scope-subtasks"]')].find(item=>item.dataset.id===id)?.focus({preventScroll:true});
@@ -363,8 +426,8 @@ document.addEventListener('click',event=>{
   else if(action==='task-view'){if(page!=='projects')return;scopeLayouts[entityId]=button.dataset.view==='kanban'?'kanban':'table';try{localStorage.setItem('kontur-project-layouts',JSON.stringify(scopeLayouts));}catch{}render();}
   else if(action==='configure-kanban'){kanbanDraft=clone(boardConfig(state,entityId));openModal(boardSettingsHTML(kanbanDraft));}
   else if(action.startsWith('kanban-column-')){if(!kanbanDraft)return;const i=Number(button.dataset.index),cols=kanbanDraft.columns;if(action==='kanban-column-add'&&cols.length<12)cols.push({id:newId('column'),title:'Новая колонка',status:'todo',color:'purple'});else if(action==='kanban-column-remove')cols.splice(i,1);else if(action==='kanban-column-up'&&i>0)[cols[i-1],cols[i]]=[cols[i],cols[i-1]];else if(action==='kanban-column-down'&&i<cols.length-1)[cols[i+1],cols[i]]=[cols[i],cols[i+1]];openModal(boardSettingsHTML(kanbanDraft));}
-  else if(action==='open-project')navigatePage('projects',id);
-  else if(action==='open-area')navigatePage('areas',id);
+  else if(action==='open-project'){navigatePage('projects',id);if(event.detail===0)focusCollection();}
+  else if(action==='open-area'){navigatePage('areas',id);if(event.detail===0)focusCollection();}
   else if(action==='new-project')showEntity('project','',{parentId:button.dataset.parent,areaId:button.dataset.area});
   else if(action==='edit-project')showEntity('project',id);
   else if(action==='complete-project'){const p=state.projects.find(p=>p.id===id);if(!p)return;openModal('<h2>Завершить проект?</h2><p class="modal-description">'+esc(p.name)+'</p><div class="hint-box">Вы подтверждаете, что цель достигнута. Задачи не будут автоматически отмечены выполненными. Проект и его подпроекты перестанут предлагаться в новых планах; повторения приостановятся. Проект можно открыть снова.</div><div class="modal-actions"><button class="secondary-button" data-action="close-modal">Отмена</button><button class="primary-button" data-action="confirm-complete-project" data-id="'+esc(id)+'">Завершить проект</button></div>');}
@@ -419,7 +482,10 @@ document.addEventListener('input',event=>{const {id,value}=event.target;
   else if(id==='reflection'){const p=current();editDayField(p.key+':reflection',next=>{getPlan(next,p).reflection=value;});}
 });
 document.addEventListener('change',event=>{const {id,value}=event.target;
-  if(event.target.name==='time-format'){if(saveTimeFormat(value))timeFormat=value;else toast('Не удалось сохранить формат времени.');renderTimeFormat();}
+  if(id==='vim-navigation'){
+   if(saveVimPreference(event.target.checked))vimEnabled=event.target.checked;else toast('Не удалось сохранить режим навигации.');
+   event.target.checked=vimEnabled;
+  }else if(event.target.name==='time-format'){if(saveTimeFormat(value))timeFormat=value;else toast('Не удалось сохранить формат времени.');renderTimeFormat();}
   else if(event.target.name==='weekly-source-view'){const next=normalizeWeeklyView(value);if(saveWeeklyView(next)){weeklyView=next;toast('Вид недельного списка сохранён');}else toast('Не удалось сохранить вид списка в этом браузере.');renderWeeklyViewSetting();}
   else if(event.target.dataset.kanbanMove){try{const next=moveKanbanTask(state,event.target.dataset.kanbanMove,value,today(),null,undefined,entityId);persist();render();toast(next?'Выполнено. Следующий экземпляр — '+dateFormat(next.due):'Карточка перемещена');}catch(e){toast(e.message);}}
   else if(event.target.dataset.columnField&&kanbanDraft){kanbanDraft.columns[Number(event.target.closest('[data-column-index]').dataset.columnIndex)][event.target.dataset.columnField]=value;}
@@ -434,9 +500,27 @@ document.addEventListener('change',event=>{const {id,value}=event.target;
   else if(id==='plan-capacity'){getPlan(state,current()).capacity=Math.min(8760,Math.max(0,Number(value)||0));persist();render();}
 });
 modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
-window.addEventListener('storage',event=>{if(event.key===STORAGE_KEY&&event.newValue){try{state=validateBackup(JSON.parse(event.newValue));undoHistory.rebase(state,{reset:true});closeModal();render();toast('Данные обновлены в другой вкладке');}catch{toast('Не удалось обновить данные из другой вкладки');}}});
+window.addEventListener('storage',event=>{
+ if(event.key===STORAGE_KEY&&event.newValue){
+  try{
+   state=validateBackup(JSON.parse(event.newValue));undoHistory.rebase(state,{reset:true});
+   const focused=document.activeElement;
+   const typing=vimEnabled&&modal.open&&modal.contains(focused)&&
+    focused.matches('textarea,input:not([type=checkbox],[type=radio]),[contenteditable]');
+   if(!typing||!(taskModalOrigin||$('#task-form')&&(editingTaskContext||!editingId)))closeModal();
+   render();toast('Данные обновлены в другой вкладке');
+  }catch{toast('Не удалось обновить данные из другой вкладки');}
+ }
+});
 window.addEventListener('storage',event=>{if(event.key===WEEKLY_VIEW_KEY||event.key===null){weeklyView=event.key===null?readWeeklyView():normalizeWeeklyView(event.newValue);renderWeeklyViewSetting();if(page==='planner'&&type==='week')renderPlanner();}});
-document.addEventListener('keydown',event=>{if(event.key==='Escape'){const active=document.activeElement,menu=active?.closest('[data-weekly-menu],#task-filter-menu');if(menu?.open){menu.open=false;menu.querySelector('summary')?.focus();}else closeWeeklyMenus();}});
+document.addEventListener('keydown',event=>{
+ if(event.key!=='Escape'||event.defaultPrevented||modal.open)return;
+ const active=document.activeElement,menu=active?.closest('[data-weekly-menu],#task-filter-menu');
+ if(menu?.open){
+  menu.open=false;menu.querySelector('summary')?.focus();
+  if(vimEnabled)event.preventDefault();
+ }else closeWeeklyMenus();
+});
 function scopeDestination(kind,id){
  if(kind==='background'){kind=page==='projects'?'project':'area';id=entityId;}
  if(kind==='project'){
@@ -482,6 +566,7 @@ function dropTaskOrder(targetId,ids,siblingIds,after){
 }
 function finishTaskMove(candidate,message,options){
  if(!commitTaskChange(candidate,options))return false;
+ vim.endRange();
  desktopTasks.selection.clear();
  toast(message,true);
  return true;
@@ -509,6 +594,7 @@ function undoChange(){
   if(!persist({track:false})){state=current;return;}
  }catch(error){state=current;toast(error.message);return;}
  undoHistory.pop();
+ vim.endRange();
  entry.onUndo?.();
  if(modal.open)closeModal();
  desktopTasks.selection.clear();
@@ -516,7 +602,7 @@ function undoChange(){
  toast(entry.message||'Последнее изменение отменено');
 }
 window.addEventListener('keydown',event=>{
- if(!undoHistory.available||window.nativeSloy?.canWrite===false||event.defaultPrevented||event.repeat||(!event.ctrlKey&&!event.metaKey)||event.shiftKey||event.altKey||(event.code!=='KeyZ'&&event.key.toLowerCase()!=='z')||event.target.closest?.('textarea,[contenteditable],input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit])'))return;
+ if(!undoHistory.available||window.nativeSloy?.canWrite===false||event.defaultPrevented||event.repeat||(!event.ctrlKey&&!event.metaKey)||event.shiftKey||event.altKey||(event.code!=='KeyZ'&&(vimEnabled||event.key.toLowerCase()!=='z'))||event.target.closest?.('textarea,[contenteditable],input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit])'))return;
  event.preventDefault();
  event.stopImmediatePropagation();
  undoChange();
@@ -529,7 +615,7 @@ enableTaskDragging({
   return page==='projects'&&scopeLayouts[entityId]==='kanban'&&drag.source==='kanban';
  },
  scopeSelection:()=>desktopTasks.selection,
- onScopeSelect:ids=>{desktopTasks.selection=ids;},
+ onScopeSelect:ids=>{desktopTasks.selection=ids;vim.endRange();vim.status();},
  describeParentDrop:taskCount,
  onParentDrop:dropTaskBranch,
  canDropScope:(kind,id,ids)=>window.nativeSloy?.canWrite!==false&&movingToScope(state,scopeDestination(kind,id),ids).length>0,
@@ -544,6 +630,11 @@ const scopeTaskRows=()=>[...document.querySelectorAll('#collection-view [data-ta
 const findScopeTaskRow=id=>scopeTaskRows().find(row=>row.dataset.taskId===id);
 const taskScreen=(origin=null)=>({page,entityId,origin,screenState:state});
 
+function isVimScopeTask(task){
+ return task&&!task.archived&&(task.someday||task.recurrence==='none'||!task.done&&!task.cancelled&&!task.skipped)&&
+  (page==='projects'?task.projectId===entityId:page==='areas'&&!task.projectId&&(task.areaId||'__inbox')===entityId);
+}
+
 function taskAccess(context){
  return !!context&&context.page===page&&context.entityId===entityId&&window.nativeSloy?.canWrite!==false&&
   !context.origin?.closest('[data-vault-readonly]');
@@ -553,9 +644,12 @@ function currentTaskTargets(context){
  if(!taskAccess(context)||context.screenState!==state)return null;
  const tasks=context.ids.map(id=>state.tasks.find(task=>task.id===id));
  if(tasks.some(task=>!task||!isTaskActive(state,task)))return null;
- if(context.rowId){
-  const writableIds=new Set(scopeTaskRows().filter(row=>!row.closest('[data-vault-readonly]')).map(row=>row.dataset.taskId));
-  if(context.ids.some(id=>!writableIds.has(id)))return null;
+ if(context.rowId||context.vim){
+  const rows=new Map(scopeTaskRows().map(row=>[row.dataset.taskId,row]));
+  if(tasks.some(task=>{
+   const row=rows.get(task.id);
+   return row?row.closest('[data-vault-readonly]'):!context.vim||!isVimScopeTask(task);
+  }))return null;
  }
  return tasks;
 }
@@ -570,7 +664,9 @@ function commitTaskChange(candidate,options){
 }
 
 function openExistingTask(id,context){
- if(taskAccess(context)&&state.tasks.some(task=>task.id===id))showTask(id,{context:context.ids?context:null});
+ if(!taskAccess(context)||!state.tasks.some(task=>task.id===id))return;
+ const fromVimList=vimEnabled&&context.origin?.closest('[data-vim-list]');
+ showTask(id,{context:context.ids?context:fromVimList?{...context,ids:[id]}:null});
 }
 
 function openSubtask(id,context){
@@ -638,17 +734,17 @@ function taskMoveOptions(ids){
  return [...projects,...areas,...parents];
 }
 
-function describeTaskMenu(row,origin){
- const rowId=row.dataset.taskId,ids=taskMenuTargets(rowId,desktopTasks.selection);
- const context={...taskScreen(origin),rowId,ids,fromTrigger:origin.hasAttribute('data-task-menu-trigger'),day:today()};
+function describeTaskMenu(row,origin,ids=taskMenuTargets(row.dataset.taskId,desktopTasks.selection),{keyboard=false,completeSelection=false}={}){
+ const rowId=row?.dataset.taskId;
+ const context={...taskScreen(origin),rowId,ids,fromTrigger:origin.hasAttribute('data-task-menu-trigger'),day:today(),vim:keyboard};
  const tasks=currentTaskTargets(context);
  if(!tasks)return null;
- const group=ids.length>1,task=tasks[0],commands=[];
+ const group=ids.length>1,finishGroup=group||completeSelection,task=tasks[0],commands=[];
  const add=(id,label,extra={})=>commands.push({id,label,...extra});
- const completionCount=completionTargets(state,tasks,{completeOnly:group,native:!!window.nativeSloy}).length;
+ const completionCount=completionTargets(state,tasks,{completeOnly:finishGroup,native:!!window.nativeSloy}).length;
  const planCount=new Set(taskPlanOptions(state,tasks,context.day).flatMap(option=>option.ids)).size;
  if(!group)add('open','Открыть');
- if(!group&&completionCount)add('toggle-done',task.done?'Вернуть в работу':'Завершить',{done:task.done});
+ if(!finishGroup&&completionCount)add('toggle-done',task.done?'Вернуть в работу':'Завершить',{done:task.done});
  if(!group)add('subtask','Добавить подзадачу');
  if(planCount)add('plan',group?'Добавить в план… ('+planCount+')':'Запланировать…');
  const branches=taskBranchSelection(state,ids);
@@ -656,19 +752,24 @@ function describeTaskMenu(row,origin){
   state.areas.some(area=>branches.into(scopeDestination('area',area.id)).length)||
   branches.into(scopeDestination('area','__inbox')).length||state.tasks.some(task=>branches.under(task.id).length);
  if(canMove)add('move',group?'Переместить '+taskCount(ids.length)+'…':'Переместить…');
- if(group&&completionCount)add('complete','Завершить доступные ('+completionCount+')');
+ if(finishGroup&&completionCount)add('complete','Завершить доступные ('+completionCount+')');
  if(!group)add('archive','Убрать из активных…');
  if(group||desktopTasks.selection.has(rowId))add('clear-selection','Снять выделение',{pinnable:false});
  else add('select','Выбрать задачу',{pinnable:false});
  return {context,commands,title:group?'Выбрано задач: '+ids.length:task.title};
 }
 
-let taskModalOrigin=null;
-modal.addEventListener('close',()=>{
- const context=taskModalOrigin;
- taskModalOrigin=null;
- if(context)restoreTaskMenuFocus(context);
-});
+let taskModalOrigin=null,vimModalOrigin=null,vimTreeModalOrigin=null;
+function restoreModalFocus(){
+ if(modal.open)return;
+ const context=taskModalOrigin,tree=vimTreeModalOrigin;
+ taskModalOrigin=null;vimTreeModalOrigin=null;
+ if(vimModalOrigin){
+  const before=vimModalOrigin;vimModalOrigin=null;vim.refresh(before,{restore:true});
+ }else if(tree)vimTree.restore(tree);
+ else if(context)restoreTaskMenuFocus(context);
+}
+modal.addEventListener('close',restoreModalFocus);
 
 function executeTaskMenu(command,context){
  const tasks=currentTaskTargets(context),{ids}=context,id=ids[0];
@@ -683,6 +784,7 @@ function executeTaskMenu(command,context){
   }else if(command.id==='select'||command.id==='clear-selection'){
    if(command.id==='select')desktopTasks.selection.add(context.rowId);else desktopTasks.selection.clear();
    for(const row of scopeTaskRows())row.classList.toggle('is-task-selected',desktopTasks.selection.has(row.dataset.taskId));
+   vim.endRange();vim.status();
   }else if(command.id==='complete'){
    const eligible=completionTargets(state,tasks,{completeOnly:true,native:!!window.nativeSloy});
    if(eligible.length&&commitTaskChange(completeTasks(state,eligible,today()).candidate)){
@@ -713,10 +815,110 @@ function executeTaskMenu(command,context){
     }});
   }
  }catch(error){toast(error.message);}
- if(modal.open)taskModalOrigin=context;else restoreTaskMenuFocus(context);
+ if(modal.open)taskModalOrigin=context;else if(!context.vim)restoreTaskMenuFocus(context);
 }
 
-const closeTaskMenu=initTaskContextMenu({describe:describeTaskMenu,execute:executeTaskMenu,restore:restoreTaskMenuFocus});
+function taskMenuShortcut(command,context){
+ if(!vimEnabled)return;
+ const action=command.id==='toggle-done'?'complete':command.id;
+ const {ids,usesSelection}=vimTaskTargets(action,context.rowId,desktopTasks.selection);
+ if(ids.length!==context.ids.length||ids.some(id=>!context.ids.includes(id))||command.done&&usesSelection)return;
+ return vimMenuKey(command.id);
+}
+
+const closeTaskMenu=initTaskContextMenu({describe:describeTaskMenu,execute:executeTaskMenu,restore:restoreTaskMenuFocus,
+ shortcut:taskMenuShortcut,onOpen:()=>vim.resetPrefix()});
+
+function focusCollection(id){
+ if(vim.focusList(id)||!vimEnabled)return;
+ const heading=$('#collection-view h1');
+ if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}
+}
+
+function searchWorkspace(){
+ if(document.querySelector('main').inert)return false;
+ showWorkspaceSearch(openModal,closeModal,query=>workspaceSearchResults(state,query),result=>{
+  closeModal();
+  if(result.kind==='task'){
+   const task=state.tasks.find(item=>item.id===result.id);
+   if(!task||!isTaskActive(state,task))return;
+   navigatePage(task.projectId?'projects':'areas',task.projectId||task.areaId||'__inbox');
+   focusCollection(task.id);
+   openExistingTask(task.id,taskScreen(document.activeElement));
+  }else{
+   navigatePage(result.kind==='project'?'projects':'areas',result.id);
+   focusCollection();
+  }
+ });
+ return true;
+}
+
+function showVimHelp(){
+ openModal(vimHelpHTML());
+}
+
+function runVimCommand(command,row,options){
+ if(command==='branch'){
+  desktopTasks.modes.set(row.dataset.taskId,options.expanded?0:2);
+  render();
+  return true;
+ }
+ if(command==='add'){
+  if(window.nativeSloy?.canWrite===false||document.querySelector('main').inert)return false;
+  const scope=['projects','areas'].includes(page)&&entityId?scopeDestination('background',entityId):null;
+  if(entityId&&['projects','areas'].includes(page)&&!scope)return false;
+  const destination=page==='today'?'overplan':page==='planner'&&type==='day'?'day':'';
+  showTask(null,{...scope,destination});
+  if(modal.open)$('#edit-title').focus();
+  return true;
+ }
+ const {ids,usesSelection}=vimTaskTargets(command,row?.dataset.taskId,desktopTasks.selection);
+ if(!ids.length)return false;
+ const origin=row||$('#collection-view [data-vim-list]');
+ const details=describeTaskMenu(row,origin,ids,{keyboard:true,completeSelection:command==='complete'&&usesSelection});
+ const action=details?.commands.find(item=>item.id===(command==='complete'&&!usesSelection?'toggle-done':command));
+ if(!action)return false;
+ executeTaskMenu(action,details.context);
+ return true;
+}
+
+const vimTree=initVimProjectTree({
+ enabled:()=>vimEnabled,toggle:toggleTree,
+ reveal:()=>{
+  if(matchMedia('(max-width:680px)').matches){
+   if(!projectCatalog())navigatePage('projects');
+   return $('#zones-tree');
+  }
+  if(document.documentElement.dataset.sidebar==='compact')$('[data-action="toggle-sidebar"]').click();
+  $('#space-tree-container').open=true;
+  const project=page==='projects'&&state.projects.find(item=>item.id===entityId);
+  if(project){
+   treeExpanded['area:'+(project.areaId||'__inbox')]=true;
+   if(project.parentId)treeExpanded['project:'+project.parentId]=true;
+   renderSidebar();
+  }
+  return $('#sidebar-tree');
+ },
+ create:row=>{
+  if(window.nativeSloy?.canWrite===false)return false;
+  const project=row?.dataset.treeOpen==='project'?state.projects.find(item=>item.id===row.dataset.id):null;
+  const parent=project?.parentId?state.projects.find(item=>item.id===project.parentId):project;
+  if(parent&&!isProjectAvailable(state,parent))return false;
+  const areaId=parent?.areaId||(row?.dataset.treeOpen==='area'&&row.dataset.id!=='__inbox'?row.dataset.id:null);
+  showEntity('project','',{explorer:true,parentId:parent?.id,areaId});
+  return true;
+ }
+});
+
+const vim=initVimNavigation({
+ enabled:()=>vimEnabled,scope:()=>JSON.stringify([page,entityId]),
+ selection:()=>desktopTasks.selection,setSelection:ids=>{desktopTasks.selection=ids;},
+ run:runVimCommand,help:showVimHelp,search:searchWorkspace,hint:$('#vim-prefix-hint'),explorer:vimTree,
+ navigate:destination=>{
+  if(destination==='week')navigate('week',today());
+  else{navigatePage(destination);if(destination==='projects')vimTree.focus($('#zones-tree'));}
+ }
+});
 
 enableHabitHold(openHabitEntry);
 enableTaskSwipe({canComplete:(id,row)=>window.nativeSloy?.canWrite!==false&&!row.closest('[data-vault-readonly]')&&canSwipeTask(state,state.tasks.find(t=>t.id===id)),onComplete:id=>changeTaskDone(id,true)});

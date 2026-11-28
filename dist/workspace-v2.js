@@ -37,7 +37,7 @@ export function projectArchiveHTML(state){
  const projects=state.projects.filter(p=>isProjectArchived(state,p));
  return `<div class="scope-heading"><h1>Архив проектов</h1><button class="text-button" data-action="page" data-page="zones">Зоны и проекты ↗</button></div><p class="project-archive-notice">Архив сохраняет задачи и историю проектов. Восстановите проект, чтобы снова выбирать его задачи в планы.</p>${projects.length?projects.map(p=>{const parent=state.projects.find(parent=>parent.id===p.parentId),inherited=parent?.archived,area=state.areas.find(a=>a.id===projectArea(state,p));return `<div class="project-archive-row"><button class="project-archive-open" ${attrs('open-project',p.id)}><span>${entityIcon(p,'project')}${esc(projectLabel(state,p.id))}</span><small>${esc(area?.name||'Без зоны')}${inherited?' · в архиве вместе с родителем':''}</small></button><button class="secondary-button" ${attrs('restore-project',inherited?parent.id:p.id)}>${inherited?'Восстановить родителя':'Восстановить'}</button><button class="text-button" ${attrs('delete-project',p.id)}>Удалить</button></div>`;}).join(''):'<p class="flow-empty">В архиве пока нет проектов.</p>'}`;
 }
-export function scopeHTML(state,{page,entityId,layout='table',desktopTasks=null,selection=new Set()}){
+export function scopeHTML(state,{page,entityId,layout='table',desktopTasks=null,selection=new Set(),vim=false,drag=!!desktopTasks}){
  if(page==='projects'&&entityId==='__archive')return projectArchiveHTML(state);
  const isProject=page==='projects',entity=isProject?state.projects.find(p=>p.id===entityId):state.areas.find(a=>a.id===entityId),inbox=!isProject&&entityId==='__inbox',id=entity?.id||'',name=entity?.name||(inbox?'Без зоны':isProject?'Проект':'Зоны ответственности');
  if(!entity&&!inbox)return `<div class="collection-heading"><h1>${esc(name)}</h1><button class="primary-button" data-action="new-${isProject?'project':'area'}">+ Создать</button></div><p class="flow-empty">Выберите ${isProject?'проект':'зону'} в боковой панели.</p>`;
@@ -61,9 +61,9 @@ export function scopeHTML(state,{page,entityId,layout='table',desktopTasks=null,
   if(hideDone&&task.done)return mode===2?'':nested.map(child=>renderBranch(child,true)).join('');
   const visibleCount=mode===1?withoutDoneCount(nested):nested.length;
   const labels=['Все','Без выполненных','Скрыты'],label='Подзадачи: '+labels[mode];
-  const toggle=nested.length?`<button class="scope-subtask-toggle" type="button" ${attrs('cycle-scope-subtasks',task.id)} title="${label}" aria-label="${label}, ${nested.length} всего"><span aria-hidden="true">${['≡','◐','›'][mode]}</span>${visibleCount}</button>`:'';
+  const toggle=nested.length?`<button class="scope-subtask-toggle" type="button" ${attrs('cycle-scope-subtasks',task.id)} title="${label}" ${vim?`aria-expanded="${mode!==2}"`:''} aria-label="${label}, ${nested.length} всего"><span aria-hidden="true">${['≡','◐','›'][mode]}</span>${visibleCount}</button>`:'';
   const historic=history.includes(task);
-  const row=flowTaskHTML(state,task,{readonly:historic,history:historic,menu:true,branch:{selected:desktopTasks.selection.has(task.id),toggle}});
+  const row=flowTaskHTML(state,task,{readonly:historic,history:historic,menu:true,branch:{drag,selected:desktopTasks.selection.has(task.id),toggle}});
   return `<div class="scope-branch">${row}<div class="scope-drop-zone" data-task-drop-zone aria-hidden="true"></div>${nested.length&&mode!==2?`<div class="scope-branch-children">${nested.map(child=>renderBranch(child,hideDone||mode===1)).join('')}</div>`:''}</div>`;
  };
  const listTask=task=>desktopTasks?renderBranch(task):flowTaskHTML(state,task,{menu:true,branch:{drag:false,selected:selection.has(task.id)}});
@@ -71,8 +71,11 @@ export function scopeHTML(state,{page,entityId,layout='table',desktopTasks=null,
  const tasks=isProject&&layout==='kanban'?kanbanHTML(state,active,id):section(page+':'+id+':single','Самостоятельные задачи',roots(single).map(listTask).join('')||'<p class="flow-empty">Пока нет задач.</p>',roots(single).length)+section(page+':'+id+':repeat','Повторяющиеся задачи',`<button class="text-button section-add-repeat" data-action="new-recurring" ${linkAttrs}>+ Повторяющаяся задача</button>${roots(recurring).map(listTask).join('')||'<p class="flow-empty">Пока нет повторений.</p>'}${roots(history).length?`<details class="repeat-history flow-section" data-collapse-key="repeat-history:${esc(id)}"><summary>История экземпляров · ${roots(history).length}</summary><div class="flow-section-body">${roots(history).map(historyTask).join('')}</div></details>`:''}`,recurring.length);
  const childActions=isProject&&entity.parentId?'':`<button class="text-button section-add-repeat" data-action="new-project" ${isProject?`data-parent="${esc(id)}"`:inbox?'':`data-area="${esc(id)}"`}>+ ${isProject?'Подпроект':'Проект'}</button>`;
  const list=tasks+(!(isProject&&layout==='kanban')?section(page+':'+id+':someday','Когда-нибудь',roots(someday).map(listTask).join('')||'<p class="flow-empty">Отложенные действия появятся здесь.</p>',roots(someday).length):'');
- const selectable=desktopTasks&&layout!=='kanban'&&active.length;
- return header+(selectable?'<div class="scope-task-selection" data-task-selection>'+list+'</div>':list)+(!isProject||!entity.parentId?section(page+':'+id+':children',isProject?'Подпроекты':'Проекты',childActions+childCards,projects.length):'');
+ const selectable=drag&&layout!=='kanban'&&active.length;
+ const vimList=vim&&layout!=='kanban';
+ const tools=vimList?'<div class="vim-list-tools"><span data-vim-count role="status"></span></div>':'';
+ const wrapper=vimList?' data-vim-list role="region" aria-label="Список задач" tabindex="0"':'';
+ return header+tools+(selectable||vimList?'<div class="scope-task-selection"'+(selectable?' data-task-selection':'')+wrapper+'>'+list+'</div>':list)+(!isProject||!entity.parentId?section(page+':'+id+':children',isProject?'Подпроекты':'Проекты',childActions+childCards,projects.length):'');
 }
 function habitCell(state,h,day,readonly=false){const e=state.habitEntries[day]?.[h.id],v=e?.value||0,target=e?.target??h.target,disabled=readonly||day>today()||!!h.archivedOn&&day>=h.archivedOn,pct=Math.min(100,v/target*100);return `<button class="habit-day-cell ${v>=target?'goal-met':''} ${day===today()?'is-today':''}" ${attrs('habit-increment',h.id)} data-date="${day}" data-hold-habit="true" style="--habit-percent:${pct}%" ${disabled?'disabled':''} aria-label="${esc(h.name)}, ${fmt(day)}: ${num(v)} из ${num(target)} ${esc(e?.unit??h.unit)}. Прибавить ${num(h.step)}" title="${num(v)} / ${num(target)} ${esc(e?.unit??h.unit)}; удерживайте для правки"><span>${e?num(v):''}</span></button>`;}
 export function habitWeekHTML(state,day,{archiveOpen=false}={}){

@@ -1,0 +1,32 @@
+.task-menu-trigger {
+ flex:none;min-width:36px;min-height:36px;border:1px solid transparent;border-radius:8px;
+ background:transparent;color:var(--muted);font-size:20px;line-height:1;
+}
+.task-menu-trigger:hover,.task-menu-trigger:focus-visible,.task-menu-trigger[aria-expanded="true"] {
+ border-color:var(--line);background:var(--accent-soft);color:var(--accent-text);
+}
+@media (pointer:coarse) {
+ .task-menu-trigger {min-width:44px;min-height:44px}
+}
+.task-context-menu {
+ position:fixed;z-index:1000;width:260px;box-sizing:border-box;padding:5px;
+ overflow:auto;overscroll-behavior:contain;border:1px solid var(--line);border-radius:10px;
+ background:var(--surface);color:var(--text);box-shadow:0 12px 34px #0004;
+}
+.task-menu-heading {
+ padding:8px 10px;border-bottom:1px solid var(--line);font-weight:600;overflow-wrap:anywhere;
+}
+.task-context-menu button,.task-destination-list button {
+ display:block;width:100%;min-height:38px;padding:7px 10px;text-align:left;
+ border:1px solid transparent;border-radius:6px;background:transparent;color:var(--text);
+ overflow-wrap:anywhere;
+}
+.task-context-menu button:hover,.task-context-menu button:focus,.task-destination-list button:hover,
+.task-destination-list button:focus-visible,.task-destination-list button[aria-pressed="true"] {
+ background:var(--accent-soft);color:var(--accent-text);
+}
+.task-destination-list {max-height:min(36vh,290px);overflow:auto;margin:8px 0}
+.task-destination-list button small {display:block;color:var(--muted)}
+.task-destination-list button[aria-pressed="true"] {border-color:var(--accent-border)}
+#collection-view [data-task-menu-row].is-task-selected {background:var(--accent-soft);border-radius:6px}
+.task-context-menu [data-command="configure"] {margin-top:4px;border-top-color:var(--line)}

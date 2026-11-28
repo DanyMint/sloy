@@ -7,7 +7,7 @@ export function orderTaskCommands(commands,pins){
   ...commands.filter(command=>!pins.includes(command.id))];
 }
 
-export function initTaskContextMenu({describe,execute,restore}){
+export function initTaskContextMenu({describe,execute,restore,shortcut,onOpen}){
  let active=null,pins={};
  try{const saved=JSON.parse(localStorage.getItem(pinKey));for(const kind of ['single','group'])if(Array.isArray(saved?.[kind]))pins[kind]=saved[kind];}catch{}
  const close=(focus=true)=>{
@@ -31,6 +31,7 @@ export function initTaskContextMenu({describe,execute,restore}){
   popup.setAttribute('aria-label',title);
   trigger?.setAttribute('aria-expanded','true');
   active={popup,context,trigger};
+  onOpen?.();
   let configuring=false;
   function draw(focusId){
    popup.replaceChildren();
@@ -39,7 +40,7 @@ export function initTaskContextMenu({describe,execute,restore}){
    heading.textContent=configuring?'Закрепить команды':title;
    popup.append(heading);
    const pinned=pins[kind]||[];
-   const append=(id,label,run,checked)=>{
+   const append=(id,label,run,checked,key)=>{
     const button=document.createElement('button');
     button.type='button';
     button.tabIndex=-1;
@@ -47,6 +48,10 @@ export function initTaskContextMenu({describe,execute,restore}){
     button.setAttribute('role',checked===undefined?'menuitem':'menuitemcheckbox');
     if(checked!==undefined)button.setAttribute('aria-checked',String(checked));
     button.textContent=label;
+    if(key){
+     const kbd=document.createElement('kbd');
+     kbd.textContent=key;button.append(kbd);
+    }
     button.addEventListener('click',run);
     popup.append(button);
    };
@@ -58,7 +63,7 @@ export function initTaskContextMenu({describe,execute,restore}){
      pins[kind]=checked?pinned.filter(id=>id!==command.id):[...pinned,command.id];
      try{localStorage.setItem(pinKey,JSON.stringify(pins));}catch{}
      draw(command.id);
-    },configuring?checked:undefined);
+    },configuring?checked:undefined,!configuring&&shortcut?.(command,context));
    }
    append('configure',configuring?'Готово':'Настроить меню',()=>{configuring=!configuring;draw(configuring?undefined:'configure');});
    const viewport=window.visualViewport,left=viewport?.offsetLeft||0,top=viewport?.offsetTop||0;

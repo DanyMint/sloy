@@ -1,0 +1,68 @@
+.vim-list-tools,.vim-settings-actions {
+ display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+}
+.vim-list-tools {
+ margin:12px 0;color:var(--muted);
+}
+.vim-list-tools .field {
+ width:min(100%,320px);
+}
+[data-vim-count] {
+ min-width:7em;font-variant-numeric:tabular-nums;
+}
+[data-vim-list] [data-task-menu-row][hidden] {
+ display:none;
+}
+[data-vim-list] .is-vim-active {
+ outline:2px solid var(--focus);outline-offset:-2px;
+ scroll-margin:16px;
+}
+[data-vim-list] .is-vim-active:focus {
+ outline:2px solid var(--accent-text);outline-offset:-2px;
+}
+.vim-prefix-hint {
+ position:fixed;z-index:900;bottom:16px;left:50%;transform:translateX(-50%);
+ width:max-content;max-width:calc(100% - 24px);padding:8px 12px;border-radius:8px;
+ border:1px solid var(--line);background:var(--surface);color:var(--ink);
+ pointer-events:none;font-size:.85rem;
+}
+.vim-commands {
+ display:grid;grid-template-columns:max-content 1fr;gap:6px 12px;align-items:baseline;
+ margin:10px 0 18px;
+}
+.vim-commands dd {
+ margin:0;
+}
+.vim-commands kbd,.task-context-menu kbd {
+ padding:2px 5px;border:1px solid var(--line);border-radius:4px;
+ background:var(--field);color:var(--accent-text);white-space:nowrap;
+}
+.task-context-menu kbd {
+ float:right;margin-left:8px;
+}
+@media(max-width:680px) {
+ .vim-prefix-hint {bottom:calc(76px + env(safe-area-inset-bottom));}
+}
+.vim-settings-actions input[role="switch"] {
+ appearance:none;cursor:pointer;position:relative;flex:none;width:38px;height:22px;margin:0;
+ border:1px solid var(--accent-border);border-radius:99px;background:var(--accent-soft);
+}
+.vim-settings-actions input[role="switch"]::before {
+ content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;
+ border-radius:50%;background:var(--accent-text);
+}
+.vim-settings-actions input[role="switch"]:checked {
+ background:var(--button-bg);
+}
+.vim-settings-actions input[role="switch"]:checked::before {
+ left:19px;background:var(--button-text);
+}
+.vim-help-grid {
+ display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px;
+}
+.vim-help-grid > :only-child {
+ grid-column:1/-1;
+}
+@media(max-width:560px) {
+ .vim-help-grid {grid-template-columns:1fr;gap:0;}
+}

@@ -51,6 +51,14 @@ python3 -m http.server 8080 --directory dist
 
 Then open [localhost:8080](http://localhost:8080).
 
+## Vim navigation
+
+In **Settings → Appearance**, enable **Vim navigation** on this device. Choose **Show commands**, or press `?` on the current screen. Open a project or area and use its task list. Press Tab to enter the list.
+
+The outlined row is active. Shaded rows are selected. Move with `j` and `k`, and press Space on each task you want to move. Then press `m`, search for the destination project, select it, and confirm. The selection still applies if you move the cursor to another row. Press Ctrl+Z once to undo the move. The editor and the subtask command always use the active row.
+
+Letter shortcuts follow the physical keyboard. The Russian О and Л keys work as `j` and `k`. Search fields and the editor accept text in either layout.
+
 ## Development
 
 Frontend source lives in `dist/`; the native adapter is in `native/`, and the Rust backend is in `src-tauri/`. `.native-web/` is generated — edit the source files instead.

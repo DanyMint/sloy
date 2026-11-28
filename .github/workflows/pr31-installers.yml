@@ -4,6 +4,10 @@ on:
   push:
     branches: [build/pr31-installers]
 
+concurrency:
+  group: pr31-installers-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

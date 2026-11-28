@@ -38,6 +38,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "android": { "minSdkVersion": 26 }
+    "android": { "minSdkVersion": 26 },
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "installerHooks": "windows/installer-hooks.nsh"
+      }
+    }
   }
 }

@@ -49,15 +49,14 @@ export function vimMenuKey(id){
 export function vimHelpHTML(){
  const keys=binding=>binding.split(' / ').map(sequence=>
   sequence.split(' ').map(key=>'<kbd>'+key+'</kbd>').join(' ')).join(' <span class="vim-key-separator">/</span> ');
- const section=(heading,commands)=>'<section><h3>'+heading+'</h3><dl class="vim-commands">'+
+ const section=(group,heading,commands)=>'<section class="vim-help-group vim-help-'+group+'"><h3>'+heading+'</h3><dl class="vim-commands">'+
   commands.map(([,key,label])=>'<dt>'+keys(key)+'</dt><dd>'+label+'</dd>').join('')+'</dl></section>';
- return '<div class="vim-help"><h2>Команды Vim</h2><p>Команды используют физические клавиши. На русской раскладке клавиша точки открывает поиск, а с Shift — справку. В полях ввода работает выбранная раскладка.</p>'+
-  '<p>Рамка отмечает активную строку, заливка — выделение. Отметьте задачи пробелом, нажмите m, выберите назначение и подтвердите. Ctrl+Z отменяет перенос.</p>'+
-  '<div class="vim-help-grid">'+section('Список задач',listCommands)+'<div>'+
-  section('Везде',[...destinations,['search','/','Поиск проектов, зон и задач'],['explorer','Space e','Дерево проектов из Normal'],['help','?','Показать команды'],['escape','Esc','Закрыть верхний слой или вернуться в Normal'],['add','a','Создать задачу вне дерева']])+
-  section('Дерево проектов',[['move','j / k','Следующая или предыдущая строка'],['branch','h','Свернуть ветвь или перейти к родителю'],['edges','g g / G','Первая или последняя строка'],['open','l / Enter','Открыть проект или зону'],['add','a','Создать проект или подпроект']])+
-  section('Результаты поиска',[['focus','Tab','Перейти к результатам'],['move','j / k','Выбрать результат'],['open','l / Enter','Открыть результат'],['edit','/','Вернуться к запросу'],['close','Esc','Закрыть поиск']])+'</div></div>'+
-  '<div class="modal-actions"><button type="button" class="primary-button" data-action="close-modal">Готово</button></div></div>';
+ return '<div class="vim-help"><h2>Команды Vim</h2><p class="vim-help-note">Команды привязаны к физическим клавишам. На русской раскладке клавиша точки открывает поиск, а с <kbd>Shift</kbd> — справку. В полях ввода работает выбранная раскладка.</p>'+
+  '<div class="vim-help-grid">'+section('tasks','Список задач',listCommands)+
+  section('global','Везде',[...destinations,['search','/','Поиск проектов, зон и задач'],['explorer','Space e','Дерево проектов из Normal'],['help','?','Показать команды'],['escape','Esc','Закрыть верхний слой или вернуться в Normal'],['add','a','Создать задачу вне дерева']])+
+  '<div class="vim-help-context">'+section('tree','Дерево проектов',[['move','j / k','Следующая или предыдущая строка'],['branch','h','Свернуть ветвь или перейти к родителю'],['edges','g g / G','Первая или последняя строка'],['open','l / Enter','Открыть проект или зону'],['add','a','Создать проект или подпроект']])+
+  section('search','Результаты поиска',[['focus','Tab','Перейти к результатам'],['move','j / k','Выбрать результат'],['open','l / Enter','Открыть результат'],['edit','/','Вернуться к запросу'],['close','Esc','Закрыть поиск']])+'</div></div>'+
+  '<p class="vim-help-note vim-help-example">Рамка отмечает активную строку, заливка — выделение. Отметьте задачи клавишей <kbd>Space</kbd>, затем нажмите <kbd>m</kbd> и выберите назначение. <kbd>Ctrl+Z</kbd> отменяет перенос.</p></div>';
 }
 
 export function vimKey(event,prefix=''){

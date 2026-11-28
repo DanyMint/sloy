@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeState,projectPathDraft,saveProject} from '../dist/domain.js';
-import {workspaceSearchResults} from '../dist/workspace-search.js';
+import {workspaceSearchKey,workspaceSearchResults} from '../dist/workspace-search.js';
 import {scopeHTML} from '../dist/workspace-v2.js';
 import {rangeSelection,recoverActiveId,vimHelpHTML,vimKey,vimMenuKey,vimTaskTargets} from '../dist/vim-navigation.js';
 
@@ -97,4 +97,16 @@ test('workspace search finds projects, areas and tasks by title or hierarchy',()
  assert.deepEqual(workspaceSearchResults(state,'ДИЗАЙН').map(item=>item.id).sort(),['child','item','root','zone']);
  assert.deepEqual(workspaceSearchResults(state,'окно панели').map(item=>item.id),['item']);
  assert.equal(workspaceSearchResults(state,'панели')[0].kind,'project');
+});
+
+
+test('search result shortcuts use physical keys only after leaving the query',()=>{
+ for(const [code,value,action] of [['KeyJ','о','down'],['KeyK','л','up'],['KeyL','д','open'],['Slash','.','edit']]){
+  assert.equal(workspaceSearchKey(key(code,value),true),action);
+  assert.equal(workspaceSearchKey(key(code,value),false),undefined);
+  assert.equal(workspaceSearchKey(key(code,value,{isComposing:true}),true),undefined);
+ }
+ assert.equal(workspaceSearchKey(key('ArrowDown','ArrowDown'),false),'down');
+ assert.equal(workspaceSearchKey(key('Enter','Enter'),false),'open');
+ assert.equal(workspaceSearchKey(key('Escape','Escape'),true),'close');
 });

@@ -57,7 +57,9 @@ In **Settings → Appearance**, enable **Vim navigation** on this device. Choose
 
 The outlined row is active. Shaded rows are selected. Move with `j` and `k`, and press Space on each task you want to move. Then press `m`, search for the destination project, select it, and confirm. The selection still applies if you move the cursor to another row. Press Ctrl+Z once to undo the move. The editor and the subtask command always use the active row.
 
-Letter shortcuts follow the physical keyboard. The Russian О and Л keys work as `j` and `k`. Search fields and the editor accept text in either layout.
+From Normal, press `Space e` to focus the project tree. Press `a` there to create a project. Enter `Parent/Child` to create a subproject and create its parent when needed. Escape returns to Normal and leaves completed task selections intact.
+
+Shortcuts follow the physical keyboard. `/` opens search and Shift with that key opens the complete shortcut reference. The Russian О and Л keys work as `j` and `k`. Search fields and the editor accept text in either layout.
 
 ## Development
 

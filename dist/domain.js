@@ -190,3 +190,14 @@ export function materializeRepeats(state,day,idFactory=newId){
  }
  return created;
 }
+
+export function projectPathDraft(state,name,areaId){
+ const parts=name.split('/').map(part=>part.trim());
+ if(parts.length!==2||parts.some(part=>!part||part.length>100))throw new Error('Введите путь из двух названий: Проект/Подпроект.');
+ const [parentName,childName]=parts;
+ const parent=state.projects.find(project=>!project.parentId&&project.name.toLocaleLowerCase()===parentName.toLocaleLowerCase());
+ if(parent&&(parent.areaId||null)!==(areaId||null))throw new Error('Родительский проект находится в другой зоне.');
+ if(parent&&!isProjectAvailable(state,parent))throw new Error('Сначала откройте или восстановите родительский проект.');
+ if(parent&&state.projects.some(project=>project.parentId===parent.id&&project.name.toLocaleLowerCase()===childName.toLocaleLowerCase()))throw new Error('Подпроект с таким названием уже существует.');
+ return {parent,parentName,childName};
+}

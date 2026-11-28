@@ -1,3 +1,4 @@
+import {initVimProjectTree} from './vim-project-tree.js';
 import {initVimNavigation,readVimPreference,saveVimPreference,vimHelpHTML,vimMenuKey,vimTaskTargets} from './vim-navigation.js';
 import {initTaskContextMenu,chooseTaskDestination} from './task-context-menu.js';
 import {taskMenuTargets,completionTargets,completeTasks,taskPlanOptions,planTasks,taskBranchSelection,movableRoots,movingToScope,moveTaskRoots} from './task-commands.js';
@@ -21,7 +22,7 @@ import {journalPlan as getPlan,freezeJournal as freezePlan,weeklyTasks,selectJou
 import {focusPlannerHTML,focusCount,yearStatsHTML,quarterStatsHTML,taskChartHTML} from './journal-pages.js';
 import {saveHabit,deleteHabit,setHabitValue,incrementHabit,saveDayLog,sleepMinutes,durationLabel,validDay} from './wellness.js';
 import {diaryWeekHTML,adjacentPeriodsHTML,plannerDiaryHTML,habitForm,habitDeleteConfirmation,habitEntryForm,analyticsHTML} from './wellness-pages.js';
-import {normalizeState,newId,saveArea,saveProject,setTaskParent,setTaskStatus,projectArea,materializeRepeats,isTaskActive,setProjectArchived,deleteProject,setProjectCompleted,isProjectAvailable,rememberTaskListOrder,reorderTaskList} from './domain.js';
+import {normalizeState,newId,saveArea,saveProject,projectPathDraft,setTaskParent,setTaskStatus,projectArea,materializeRepeats,isTaskActive,setProjectArchived,deleteProject,setProjectCompleted,isProjectAvailable,rememberTaskListOrder,reorderTaskList} from './domain.js';
 import {entityForm,taskForm,statusBadge,subtasksHTML} from './pages.js';
 import {STORAGE_KEY,clone,today,dateOf,addDays,period,shiftPeriod,comparison,tasksMarkdown,planMarkdown,validateBackup,seedState} from './model.js';
 const $=s=>document.querySelector(s);
@@ -54,8 +55,14 @@ const desktopPointer=matchMedia('(any-pointer: fine)');
 const undoHistory=createUndoHistory();
 const collectionContext=()=>({page,entityId,layout:scopeLayouts[entityId]||'table',desktopTasks:desktopPointer.matches||vimEnabled?desktopTasks:null,selection:desktopTasks.selection,vim:vimEnabled,drag:desktopPointer.matches});
 function navigatePage(next,id=''){vim.resetPrefix();vim.endRange();desktopTasks.selection.clear();mobileShell.close();page=next;entityId=id;history.replaceState(null,'','?page='+page+(id?'&entity='+encodeURIComponent(id):'')+'&view='+type+'&date='+(page==='habits'?logDate:page==='analytics'?analyticsContext.anchor:anchor));render();window.scrollTo({top:0,behavior:'instant'});}
+const projectCatalog=()=>page==='projects'&&!entityId;
 function renderSidebar(){
- const tree=sidebarTreeHTML(state,{page,entityId,expanded:treeExpanded});$('#sidebar-tree').innerHTML=tree;$('#zones-tree').innerHTML=tree;
+ const treeBefore=vimTree.snapshot();
+ const toolbar=vimEnabled?'<input class="field vim-tree-search" type="search" data-vim-tree-search aria-label="Поиск проектов и зон" placeholder="Найти проект или зону">':'';
+ const tree=sidebarTreeHTML(state,{page,entityId,expanded:treeExpanded});$('#sidebar-tree').innerHTML=toolbar+tree;$('#zones-tree').innerHTML=toolbar+tree;
+ for(const nav of [$('#sidebar-tree'),$('#zones-tree')])nav.tabIndex=-1;
+ vimTree.refresh();
+ vimTree.restore(treeBefore);
  document.querySelectorAll('#page-nav [data-page],.sidebar-system [data-page],#mobile-nav [data-page],#mobile-menu [data-page]').forEach(b=>{const active=b.dataset.page===page||!!b.closest('#mobile-nav')&&b.dataset.page==='zones'&&['areas','projects'].includes(page);b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
  mobileShell.sync(page);
 }
@@ -64,7 +71,7 @@ function render(){
  const vimBefore=vim.snapshot();
  const restoreMenu=closeTaskMenu(false);
  normalizeState(state);if(materializeRepeats(state,today()))persist({track:false});renderSidebar();
- $('#settings-view').hidden=page!=='settings';$('#zones-view').hidden=page!=='zones';$('#today-view').hidden=page!=='today';$('#planner-view').hidden=page!=='planner';$('#collection-view').hidden=!['projects','areas'].includes(page);$('#wellness-view').hidden=!wellnessPage();
+ $('#settings-view').hidden=page!=='settings';$('#zones-view').hidden=page!=='zones'&&!projectCatalog();$('#zones-view h1').textContent=projectCatalog()?'Проекты':'Зоны и проекты';$('#today-view').hidden=page!=='today';$('#planner-view').hidden=page!=='planner';$('#collection-view').hidden=projectCatalog()||!['projects','areas'].includes(page);$('#wellness-view').hidden=!wellnessPage();
  document.title=({today:'Сегодня',planner:'Journal',zones:'Зоны и проекты',projects:'Проект',areas:'Зона',habits:'Привычки',analytics:'Аналитика',settings:'Настройки'}[page])+' — Sloy';
  if(page==='today')$('#today-view').innerHTML=todayHTML(state);
  else if(page==='planner')renderPlanner();
@@ -117,8 +124,50 @@ document.addEventListener('click',event=>{
   renderPeriodSelector();$(`[data-sleep-time="${button.dataset.sleepTime}"]`).focus();
  }});
 });
-function showEntity(kind,id='',defaults={}){const entity=state[kind==='project'?'projects':'areas'].find(x=>x.id===id)||{};openModal(entityForm(state,kind,entity,defaults));}
-function saveEntity(event){event.preventDefault();const form=event.target,fields={id:form.dataset.id,name:$('#entity-name').value,icon:$('#entity-form input[name="entity-icon"]:checked')?.value||'',description:$('#entity-description').value,parentId:$('#entity-parent')?.value||null,areaId:$('#entity-area')?.value||null};try{const entity=form.dataset.kind==='project'?saveProject(state,fields):saveArea(state,fields);persist();closeModal();render();toast('Сохранено: '+entity.name);}catch(e){$('#entity-error').textContent=e.message;}}
+function showEntity(kind,id='',defaults={}){
+ const entity=state[kind==='project'?'projects':'areas'].find(x=>x.id===id)||{};
+ openModal(entityForm(state,kind,entity,defaults));
+ if(defaults.explorer){
+  const form=$('#entity-form'),input=$('#entity-name'),note=document.createElement('p');
+  form.dataset.vimProjectPath='';input.maxLength=201;
+  note.className='form-note';note.setAttribute('aria-live','polite');input.after(note);
+  const update=()=>{
+   note.textContent='Введите название или путь Проект/Подпроект.';
+   if(!input.value.includes('/'))return;
+   try{
+    const path=projectPathDraft(state,input.value,entityFormArea());
+    note.textContent=path.parent?'Создать «'+path.childName+'» в проекте «'+path.parent.name+'».':
+     'Будут созданы проект «'+path.parentName+'» и подпроект «'+path.childName+'».';
+   }catch(error){note.textContent=error.message;}
+  };
+  form.addEventListener('input',update);form.addEventListener('change',update);update();
+  input.focus();
+ }
+}
+function entityFormArea(){return $('#entity-area')?.value||null;}
+function saveEntity(event){
+ event.preventDefault();
+ if(window.nativeSloy?.canWrite===false)return;
+ const form=event.target,fields={id:form.dataset.id,name:$('#entity-name').value,icon:form.querySelector('input[name="entity-icon"]:checked')?.value||'',description:$('#entity-description').value,parentId:$('#entity-parent')?.value||null,areaId:entityFormArea()};
+ try{
+  const candidate=clone(state);
+  if(form.hasAttribute('data-vim-project-path')&&fields.name.includes('/')){
+   const path=projectPathDraft(candidate,fields.name,fields.areaId);
+   const parent=path.parent||saveProject(candidate,{name:path.parentName,areaId:fields.areaId});
+   fields.name=path.childName;fields.parentId=parent.id;
+  }
+  const entity=form.dataset.kind==='project'?saveProject(candidate,fields):saveArea(candidate,fields);
+  if(!commitTaskChange(candidate))return;
+  if(form.hasAttribute('data-vim-project-path')){
+   const saved=vimTreeModalOrigin;
+   if(entity.parentId)treeExpanded['project:'+entity.parentId]=true;
+   if(entity.areaId)treeExpanded['area:'+entity.areaId]=true;
+   else treeExpanded['area:__inbox']=true;
+   if(saved)vimTreeModalOrigin={...saved,key:'project:'+entity.id,search:false};
+  }
+  closeModal();render();toast('Сохранено: '+entity.name);
+ }catch(error){$('#entity-error').textContent=error.message;}
+}
 function confirmProjectAction(id,remove=false){
  const project=state.projects.find(p=>p.id===id);if(!project)return;
  const children=state.projects.filter(p=>p.parentId===id),ids=new Set([id,...children.map(p=>p.id)]),tasks=state.tasks.filter(t=>ids.has(t.projectId)),area=state.areas.find(a=>a.id===projectArea(state,project));
@@ -253,6 +302,7 @@ function openModal(html){
  vim.resetPrefix();closeWeeklyMenus();
  if(!modal.open){
   const before=vim.snapshot();
+  vimTreeModalOrigin=vimTree.snapshot();
   taskModalOrigin=null;
   vimModalOrigin=before?.owned?before:null;
  }
@@ -553,7 +603,7 @@ function undoChange(){
  toast(entry.message||'Последнее изменение отменено');
 }
 window.addEventListener('keydown',event=>{
- if(!undoHistory.available||window.nativeSloy?.canWrite===false||event.defaultPrevented||event.repeat||(!event.ctrlKey&&!event.metaKey)||event.shiftKey||event.altKey||(event.code!=='KeyZ'&&event.key.toLowerCase()!=='z')||event.target.closest?.('textarea,[contenteditable],input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit])'))return;
+ if(!undoHistory.available||window.nativeSloy?.canWrite===false||event.defaultPrevented||event.repeat||(!event.ctrlKey&&!event.metaKey)||event.shiftKey||event.altKey||(event.code!=='KeyZ'&&(vimEnabled||event.key.toLowerCase()!=='z'))||event.target.closest?.('textarea,[contenteditable],input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit])'))return;
  event.preventDefault();
  event.stopImmediatePropagation();
  undoChange();
@@ -710,14 +760,15 @@ function describeTaskMenu(row,origin,ids=taskMenuTargets(row.dataset.taskId,desk
  return {context,commands,title:group?'Выбрано задач: '+ids.length:task.title};
 }
 
-let taskModalOrigin=null,vimModalOrigin=null;
+let taskModalOrigin=null,vimModalOrigin=null,vimTreeModalOrigin=null;
 function restoreModalFocus(){
  if(modal.open)return;
- const context=taskModalOrigin;
- taskModalOrigin=null;
+ const context=taskModalOrigin,tree=vimTreeModalOrigin;
+ taskModalOrigin=null;vimTreeModalOrigin=null;
  if(vimModalOrigin){
   const before=vimModalOrigin;vimModalOrigin=null;vim.refresh(before,{restore:true});
- }else if(context)restoreTaskMenuFocus(context);
+ }else if(tree)vimTree.restore(tree);
+ else if(context)restoreTaskMenuFocus(context);
 }
 modal.addEventListener('close',restoreModalFocus);
 
@@ -779,8 +830,8 @@ function taskMenuShortcut(command,context){
 const closeTaskMenu=initTaskContextMenu({describe:describeTaskMenu,execute:executeTaskMenu,restore:restoreTaskMenuFocus,
  shortcut:taskMenuShortcut,onOpen:()=>vim.resetPrefix()});
 
-function showVimHelp(listAvailable){
- openModal(vimHelpHTML(listAvailable));
+function showVimHelp(){
+ openModal(vimHelpHTML());
 }
 
 function runVimCommand(command,row,options){
@@ -790,11 +841,11 @@ function runVimCommand(command,row,options){
   return true;
  }
  if(command==='add'){
-  const button=$('#collection-view .scope-actions [data-action="new-task"]');
-  if(!button||button.disabled||window.nativeSloy?.canWrite===false)return false;
-  const destination=scopeDestination('background',entityId);
-  if(!destination)return false;
-  showTask(null,destination);
+  if(window.nativeSloy?.canWrite===false||document.querySelector('main').inert)return false;
+  const scope=['projects','areas'].includes(page)&&entityId?scopeDestination('background',entityId):null;
+  if(entityId&&['projects','areas'].includes(page)&&!scope)return false;
+  const destination=page==='today'?'overplan':page==='planner'&&type==='day'?'day':'';
+  showTask(null,{...scope,destination});
   if(modal.open)$('#edit-title').focus();
   return true;
  }
@@ -808,13 +859,41 @@ function runVimCommand(command,row,options){
  return true;
 }
 
+const vimTree=initVimProjectTree({
+ enabled:()=>vimEnabled,toggle:toggleTree,
+ reveal:()=>{
+  if(matchMedia('(max-width:680px)').matches){
+   if(!projectCatalog())navigatePage('projects');
+   return $('#zones-tree');
+  }
+  if(document.documentElement.dataset.sidebar==='compact')$('[data-action="toggle-sidebar"]').click();
+  $('#space-tree-container').open=true;
+  const project=page==='projects'&&state.projects.find(item=>item.id===entityId);
+  if(project){
+   treeExpanded['area:'+(project.areaId||'__inbox')]=true;
+   if(project.parentId)treeExpanded['project:'+project.parentId]=true;
+   renderSidebar();
+  }
+  return $('#sidebar-tree');
+ },
+ create:row=>{
+  if(window.nativeSloy?.canWrite===false)return false;
+  const project=row?.dataset.treeOpen==='project'?state.projects.find(item=>item.id===row.dataset.id):null;
+  const parent=project?.parentId?state.projects.find(item=>item.id===project.parentId):project;
+  if(parent&&!isProjectAvailable(state,parent))return false;
+  const areaId=parent?.areaId||(row?.dataset.treeOpen==='area'&&row.dataset.id!=='__inbox'?row.dataset.id:null);
+  showEntity('project','',{explorer:true,parentId:parent?.id,areaId});
+  return true;
+ }
+});
+
 const vim=initVimNavigation({
  enabled:()=>vimEnabled,scope:()=>JSON.stringify([page,entityId]),
  selection:()=>desktopTasks.selection,setSelection:ids=>{desktopTasks.selection=ids;},
- run:runVimCommand,help:showVimHelp,hint:$('#vim-prefix-hint'),
+ run:runVimCommand,help:showVimHelp,hint:$('#vim-prefix-hint'),explorer:vimTree,
  navigate:destination=>{
   if(destination==='week')navigate('week',today());
-  else navigatePage(destination);
+  else{navigatePage(destination);if(destination==='projects')vimTree.focus($('#zones-tree'));}
  }
 });
 

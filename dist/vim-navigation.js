@@ -47,26 +47,27 @@ export function vimMenuKey(id){
  return listCommands.find(([command])=>command===(id==='toggle-done'?'complete':id))?.[1];
 }
 
-export function vimHelpHTML(listAvailable){
+export function vimHelpHTML(){
  const section=(heading,commands)=>'<section><h3>'+heading+'</h3><dl class="vim-commands">'+commands.map(([,key,label])=>'<dt><kbd>'+key+'</kbd></dt><dd>'+label+'</dd>').join('')+'</dl></section>';
- return '<div class="vim-help"><h2>Команды Vim</h2><p>Включите «Vim-навигацию» в настройках и войдите в список задач клавишей Tab.</p>'+
-  (listAvailable?'<p>Рамка отмечает активную строку. Заливка отмечает выбранные задачи. Команды m, p и x используют выделение, если оно есть.</p><p>Для переноса отмечайте задачи пробелом, переходя между ними через j и k. Нажмите m, найдите проект, выберите его и подтвердите перенос. Ctrl+Z отменяет перенос.</p>':'')+
-  '<p>Буквы привязаны к физическим клавишам. На русской раскладке О и Л работают как j и k. В полях ввода используйте любую раскладку.</p>'+
-  '<div class="vim-help-grid">'+(listAvailable?section('Список задач',listCommands):'')+'<div>'+
-  section('Переходы',destinations)+section('Справка',[['help','?','Показать команды']])+'</div></div>'+
+ return '<div class="vim-help"><h2>Команды Vim</h2><p>Команды используют физические клавиши. На русской раскладке клавиша точки открывает поиск, а с Shift — справку. В полях ввода работает выбранная раскладка.</p>'+
+  '<p>Рамка отмечает активную строку, заливка — выделение. Отметьте задачи пробелом, нажмите m, выберите назначение и подтвердите. Ctrl+Z отменяет перенос.</p>'+
+  '<div class="vim-help-grid">'+section('Список задач',listCommands)+'<div>'+
+  section('Везде',[...destinations,['explorer','Space e','Дерево проектов из Normal'],['help','?','Показать команды'],['escape','Esc','Закрыть верхний слой или вернуться в Normal'],['add','a','Создать задачу вне дерева']])+
+  section('Дерево проектов',[['move','j / k','Следующая или предыдущая строка'],['branch','h / l','Свернуть, раскрыть или перейти по ветви'],['edges','g g / G','Первая или последняя строка'],['open','Enter','Открыть проект или зону'],['search','/','Поиск проектов и зон'],['add','a','Создать проект или подпроект']])+'</div></div>'+
   '<div class="modal-actions"><button type="button" class="primary-button" data-action="close-modal">Готово</button></div></div>';
 }
 
-export function vimKey(event,prefixed=false){
+export function vimKey(event,prefix=''){
  if(event.defaultPrevented||event.isComposing||event.keyCode===229||event.ctrlKey||event.altKey||event.metaKey)return;
- if(event.key==='Escape')return 'escape';
- if(event.key==='?')return 'help';
- if(event.key==='/')return 'search';
- if(event.key==='Enter'&&!event.shiftKey)return 'open';
- if(event.key===' '&&!event.shiftKey)return 'select';
- if(event.shiftKey)return event.code==='KeyG'?'last':undefined;
- if(prefixed)return event.code==='KeyG'?'first':destinationByCode.get(event.code);
- return event.code==='KeyG'?'prefix':byCode.get(event.code);
+ const {code,shiftKey}=event;
+ if(code==='Escape')return 'escape';
+ if(code==='Slash')return shiftKey?'help':'search';
+ if(shiftKey)return code==='KeyG'?'last':undefined;
+ if(prefix==='space')return code==='KeyE'?'explorer':undefined;
+ if(prefix)return code==='KeyG'?'first':destinationByCode.get(code);
+ if(code==='Enter'||code==='NumpadEnter')return 'open';
+ if(code==='Space')return 'select';
+ return code==='KeyG'?'prefix':byCode.get(code);
 }
 
 export function vimTaskTargets(command,active,selection){
@@ -91,14 +92,14 @@ export function rangeSelection(ids,anchor,end,base){
  return new Set([...base,...ids.slice(Math.min(first,last),Math.max(first,last)+1)]);
 }
 
-export function initVimNavigation({enabled,scope,selection,setSelection,run,navigate,help,hint}){
- const activeByScope=new Map(),searchByScope=new Map();
- let range=null,prefix=false,timer;
+export function initVimNavigation({enabled,scope,selection,setSelection,run,navigate,help,hint,explorer}){
+ const activeByScope=new Map(),searchByScope=new Map(),settingsDrafts=new WeakMap();
+ let range=null,prefix='',timer;
  const list=()=>enabled()?document.querySelector('#collection-view:not([hidden]) [data-vim-list]'):null;
  const searchInput=()=>list()?.parentElement.querySelector('[data-vim-search]');
  const rows=()=>[...list()?.querySelectorAll(rowsSelector)||[]].filter(visible);
  const resetPrefix=()=>{
-  prefix=false;clearTimeout(timer);hint.hidden=true;
+  prefix='';clearTimeout(timer);hint.hidden=true;
  };
  const status=()=>{
   const container=list();
@@ -197,6 +198,7 @@ export function initVimNavigation({enabled,scope,selection,setSelection,run,navi
  }
  document.addEventListener('focusin',event=>{
   resetPrefix();
+  if(event.target.matches('#settings-view input[type=text],#settings-view input[type=password],#settings-view input:not([type]),#settings-view textarea'))settingsDrafts.set(event.target,event.target.value);
   const container=list();
   if(!container?.contains(event.target))return;
   if(event.target===container&&!container.contains(event.relatedTarget))focusList();
@@ -218,60 +220,82 @@ export function initVimNavigation({enabled,scope,selection,setSelection,run,navi
   searchByScope.set(scope(),event.target.value);
   refresh(before);
  });
+ const normal=()=>{
+  const main=document.querySelector('main');
+  main.tabIndex=-1;main.focus({preventScroll:true});
+ };
  document.addEventListener('keydown',event=>{
   if(!enabled())return;
-  const {target}=event;
-  if(target.closest(editable)||target.isContentEditable||target.closest(customControl)||[...document.querySelectorAll(layers)].some(visible)){
+  const {target}=event,command=vimKey(event,prefix),wasPrefixed=prefix;
+  if([...document.querySelectorAll(layers)].some(visible)){
+   if(command==='escape'&&target.matches('.task-destination-picker input[type="search"]')){
+    const picker=target.closest('.task-destination-picker');
+    (picker.querySelector('.task-destination-list button')||picker.querySelector('[data-action="close-modal"]')).focus();
+    event.preventDefault();
+   }
+   return;
+  }
+  if(target.closest(editable)||target.isContentEditable){
    resetPrefix();
-   return;
-  }
-  const wasPrefixed=prefix,command=vimKey(event,wasPrefixed);
-  if(wasPrefixed&&!(event.repeat&&event.code==='KeyG')&&!event.ctrlKey&&!event.altKey&&!event.metaKey)resetPrefix();
-  if(!command||event.repeat&&event.code==='KeyG')return;
-  const container=list(),inList=container?.contains(target),row=rows().find(item=>item.dataset.taskId===activeByScope.get(scope()));
-  const onControl=target.closest(interactive);
-  if(event.repeat&&!movement.has(command)){
-   if(command==='select'&&row&&inList&&!onControl)event.preventDefault();
-   return;
-  }
-  if(command==='escape'){
-   if(!wasPrefixed&&!(range&&inList))return;
-   if(!wasPrefixed){setSelection(range.base);range=null;status();}
+   if(command!=='escape')return;
+   if(target===searchInput())focusList();
+   else if(!explorer.exitSearch(target)){
+    if(settingsDrafts.has(target))target.value=settingsDrafts.get(target);
+    normal();
+   }
    event.preventDefault();
    return;
   }
-  if(command==='prefix'){
-   prefix=true;
-   hint.textContent=destinations.concat(container?[listCommands.find(([id])=>id==='first')]:[]).map(([,key,label])=>key+' — '+label).join(' · ');
+  if(target.closest(customControl))return;
+  if(wasPrefixed&&!(event.repeat&&['KeyG','Space'].includes(event.code))&&!event.ctrlKey&&!event.altKey&&!event.metaKey)resetPrefix();
+  if(!command||event.repeat&&['KeyG','Space'].includes(event.code)){
+   if(event.repeat&&event.code==='Space'&&(wasPrefixed==='space'||target.matches(rowsSelector)))event.preventDefault();
+   return;
+  }
+  const container=list(),inList=container?.contains(target),row=rows().find(item=>item.dataset.taskId===activeByScope.get(scope()));
+  const onControl=target.closest(interactive),inTree=explorer.active(target);
+  if(event.repeat&&!movement.has(command))return;
+  if(command==='escape'){
+   if(!wasPrefixed){
+    if(range){setSelection(range.base);range=null;status();}
+    else normal();
+   }
+  }else if(command==='prefix'||command==='select'&&!inList&&!inTree&&!onControl){
+   prefix=command==='prefix'?'g':'space';
+   hint.textContent=prefix==='space'?'Space e — Дерево проектов':
+    destinations.concat(container||inTree?[['first','g g','Первая строка']]:[]).map(([,key,label])=>key+' — '+label).join(' · ');
    hint.hidden=false;timer=setTimeout(resetPrefix,1100);
-  }else if(wasPrefixed&&destinationByCode.get(event.code)===command){
+  }else if(command==='explorer'){
+   if(!explorer.enter())return;
+  }else if(wasPrefixed==='g'&&destinationByCode.get(event.code)===command){
    range=null;navigate(command);
   }else if(command==='help'){
-   help(!!container);
-  }else if(command==='first'&&container){
+   help();
+  }else if(inTree){
+   if(!explorer.run(command,target))return;
+  }else if(command==='add'){
+   if(!run(command,row))return;
+  }else if(command==='search'){
+   const input=searchInput()||document.querySelector('#planner-view:not([hidden]) #task-search');
+   if(!visible(input))return;
+   input.focus();
+  }else if(container&&movement.has(command)){
    if(!move(command))return;
-  }else{
-   if(!inList)return;
-   if(movement.has(command)){
-    if(!move(command))return;
-   }else if(command==='search'){
-    searchInput().focus();
-   }else if(command==='range'&&row){
-    if(range)range=null;
-    else{
-     const id=row.dataset.taskId;
-     range={scope:scope(),anchor:id,base:new Set(selection())};
-     setSelection(rangeSelection([id],id,id,range.base));
-     status();
-    }
-   }else if(command==='select'&&row&&!onControl){
-    const id=row.dataset.taskId,next=new Set(selection());
-    if(next.has(id))next.delete(id);else next.add(id);
-    range=null;setSelection(next);status();
-   }else if(command==='add'||groupCommands.has(command)||row&&command==='open'&&!onControl||row&&command==='subtask'){
-    if(!run(command,row))return;
-   }else return;
-  }
+  }else if(inList&&command==='range'&&row){
+   if(range)range=null;
+   else{
+    const id=row.dataset.taskId;
+    range={scope:scope(),anchor:id,base:new Set(selection())};
+    setSelection(rangeSelection([id],id,id,range.base));
+    status();
+   }
+  }else if(inList&&command==='select'&&row&&!onControl){
+   const id=row.dataset.taskId,next=new Set(selection());
+   if(next.has(id))next.delete(id);else next.add(id);
+   range=null;setSelection(next);status();
+  }else if(container&&(groupCommands.has(command)||row&&command==='open'&&!onControl||row&&command==='subtask')){
+   if(!run(command,row))return;
+  }else return;
   event.preventDefault();
  });
  return {snapshot,refresh,focusList,status,resetPrefix,endRange:()=>{range=null;}};

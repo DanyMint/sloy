@@ -66,3 +66,24 @@
 @media(max-width:560px) {
  .vim-help-grid {grid-template-columns:1fr;gap:0;}
 }
+.vim-tree-search {
+ margin:6px 0 10px;
+}
+#zones-tree .vim-tree-search {
+ max-width:320px;
+}
+.vim-tree-filtered .space-tree-item ul[hidden] {
+ display:block;
+}
+.space-tree-item[hidden] {
+ display:none;
+}
+.space-tree-title:focus-visible {
+ outline:2px solid var(--focus);outline-offset:-2px;border-radius:6px;
+}
+@media(min-width:681px) {
+ html[data-sidebar="compact"] #sidebar .vim-tree-search {display:none;}
+}
+main[tabindex="-1"]:focus {
+ outline:none;
+}

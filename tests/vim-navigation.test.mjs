@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeState} from '../dist/domain.js';
+import {normalizeState,projectPathDraft,saveProject} from '../dist/domain.js';
 import {scopeHTML} from '../dist/workspace-v2.js';
 import {rangeSelection,recoverActiveId,vimHelpHTML,vimKey,vimMenuKey,vimTaskTargets} from '../dist/vim-navigation.js';
 
@@ -17,11 +17,14 @@ test('physical letter keys work in either layout and only shifted G goes to the 
  assert.equal(vimKey(key('KeyJ','О',{shiftKey:true})),undefined);
 });
 
-test('punctuation uses the typed character and guarded key events are ignored',()=>{
+test('punctuation and the Normal prefix follow physical codes in every layout',()=>{
  assert.equal(vimKey(key('Slash','?',{shiftKey:true})),'help');
- assert.equal(vimKey(key('Digit7','?',{shiftKey:true})),'help');
- assert.equal(vimKey(key('Backslash','/',{shiftKey:true})),'search');
- assert.equal(vimKey(key('Slash','.')),undefined);
+ assert.equal(vimKey(key('Slash',',',{shiftKey:true})),'help');
+ assert.equal(vimKey(key('Slash','.')),'search');
+ assert.equal(vimKey(key('Digit7','?',{shiftKey:true})),undefined);
+ assert.equal(vimKey(key('KeyE','у'),'space'),'explorer');
+ assert.equal(vimKey(key('KeyE','у')),undefined);
+ assert.equal(vimKey(key('Space',' ')),'select');
  for(const extra of [{isComposing:true},{keyCode:229},{defaultPrevented:true},{ctrlKey:true},{altKey:true},{metaKey:true}]){
   assert.equal(vimKey(key('KeyM','m',extra)),undefined);
  }
@@ -69,5 +72,18 @@ test('only opt-in lists have a search and selection status and menu hints use th
   assert.equal(vimMenuKey(command),key);
   assert.match(vimHelpHTML(true),new RegExp('<kbd>'+key+'</kbd>'));
  }
- assert.doesNotMatch(vimHelpHTML(false),/<kbd>g g<\/kbd>/);
+ assert.match(vimHelpHTML(),/<kbd>Space e<\/kbd>/);
+ assert.match(vimHelpHTML(),/Дерево проектов/);
+});
+
+test('a project path resolves an existing root within the selected area',()=>{
+ const state=normalizeState({version:1,areas:[{id:'work',name:'Work',description:''}],projects:[],tasks:[],plans:{}});
+ const draft=projectPathDraft(state,' Parent / Child ','work');
+ assert.deepEqual(draft,{parent:undefined,parentName:'Parent',childName:'Child'});
+ const parent=saveProject(state,{name:draft.parentName,areaId:'work'});
+ assert.equal(projectPathDraft(state,'parent/Child','work').parent,parent);
+ assert.throws(()=>projectPathDraft(state,'parent/Child',null),/другой зоне/);
+ saveProject(state,{name:draft.childName,parentId:parent.id});
+ assert.throws(()=>projectPathDraft(state,'Parent/child','work'),/уже существует/);
+ assert.throws(()=>projectPathDraft(state,'Parent/Child/Nested','work'),/двух названий/);
 });

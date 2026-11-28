@@ -27,6 +27,12 @@ Install the pinned tools with `mise install` (Node.js, Rust, and quality gates),
 
 Install the optional Git hooks with `hk install`: staged-file checks run before commits, and the full `npm run check` suite runs before pushes. CI remains the required gate. Do not disable lint rules to pass a check; any exception must be narrow, explain its reason, and be approved by a maintainer.
 
+## Windows Installer
+
+- Build the Windows setup EXE with Tauri's NSIS Modern UI 2 wizard. Keep the welcome and finish pages with the standard blue NSIS sidebar.
+- Use the Sloy application icon at `src-tauri/icons/icon.ico` for both the installer and uninstaller.
+- After a successful interactive install or update, advance automatically from the progress page to “Completing Sloy Setup” without requiring a click on **Next**.
+
 ## Coding Style & Naming Conventions
 
 Match surrounding code: JavaScript uses compact formatting, single quotes, semicolons, and one- or two-space indentation. Use camelCase identifiers and descriptive kebab-case module names. Rust uses four-space indentation and snake_case functions/modules. `npm run check` enforces Oxlint and formats JSON configuration files with Oxfmt; avoid unrelated reformatting.

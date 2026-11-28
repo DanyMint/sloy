@@ -73,10 +73,9 @@ export function scopeHTML(state,{page,entityId,layout='table',desktopTasks=null,
  const list=tasks+(!(isProject&&layout==='kanban')?section(page+':'+id+':someday','Когда-нибудь',roots(someday).map(listTask).join('')||'<p class="flow-empty">Отложенные действия появятся здесь.</p>',roots(someday).length):'');
  const selectable=drag&&layout!=='kanban'&&active.length;
  const vimList=vim&&layout!=='kanban';
- const tools=vimList?'<div class="vim-list-tools"><input class="field" type="search" data-vim-search aria-label="Поиск в списке задач" placeholder="Найти задачу"><span data-vim-count role="status"></span></div>':'';
- const empty=vimList?'<p class="flow-empty" data-vim-empty hidden>Задачи не найдены.</p>':'';
+ const tools=vimList?'<div class="vim-list-tools"><span data-vim-count role="status"></span></div>':'';
  const wrapper=vimList?' data-vim-list role="region" aria-label="Список задач" tabindex="0"':'';
- return header+tools+(selectable||vimList?'<div class="scope-task-selection"'+(selectable?' data-task-selection':'')+wrapper+'>'+empty+list+'</div>':list)+(!isProject||!entity.parentId?section(page+':'+id+':children',isProject?'Подпроекты':'Проекты',childActions+childCards,projects.length):'');
+ return header+tools+(selectable||vimList?'<div class="scope-task-selection"'+(selectable?' data-task-selection':'')+wrapper+'>'+list+'</div>':list)+(!isProject||!entity.parentId?section(page+':'+id+':children',isProject?'Подпроекты':'Проекты',childActions+childCards,projects.length):'');
 }
 function habitCell(state,h,day,readonly=false){const e=state.habitEntries[day]?.[h.id],v=e?.value||0,target=e?.target??h.target,disabled=readonly||day>today()||!!h.archivedOn&&day>=h.archivedOn,pct=Math.min(100,v/target*100);return `<button class="habit-day-cell ${v>=target?'goal-met':''} ${day===today()?'is-today':''}" ${attrs('habit-increment',h.id)} data-date="${day}" data-hold-habit="true" style="--habit-percent:${pct}%" ${disabled?'disabled':''} aria-label="${esc(h.name)}, ${fmt(day)}: ${num(v)} из ${num(target)} ${esc(e?.unit??h.unit)}. Прибавить ${num(h.step)}" title="${num(v)} / ${num(target)} ${esc(e?.unit??h.unit)}; удерживайте для правки"><span>${e?num(v):''}</span></button>`;}
 export function habitWeekHTML(state,day,{archiveOpen=false}={}){

@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeState,projectPathDraft,saveProject} from '../dist/domain.js';
+import {workspaceSearchResults} from '../dist/workspace-search.js';
 import {scopeHTML} from '../dist/workspace-v2.js';
 import {rangeSelection,recoverActiveId,vimHelpHTML,vimKey,vimMenuKey,vimTaskTargets} from '../dist/vim-navigation.js';
 
@@ -66,7 +67,7 @@ test('only opt-in lists have a search and selection status and menu hints use th
  assert.doesNotMatch(scopeHTML(state,{...context,vim:true,layout:'kanban'}),/data-vim-list/);
  const list=scopeHTML(state,{...context,vim:true});
  assert.match(list,/data-vim-list/);
- assert.match(list,/data-vim-search/);
+ assert.doesNotMatch(list,/type="search"/);
  assert.match(list,/data-vim-count role="status"/);
  for(const [command,key] of [['move','m'],['plan','p'],['toggle-done','x'],['subtask','o']]){
   assert.equal(vimMenuKey(command),key);
@@ -86,4 +87,14 @@ test('a project path resolves an existing root within the selected area',()=>{
  saveProject(state,{name:draft.childName,parentId:parent.id});
  assert.throws(()=>projectPathDraft(state,'Parent/child','work'),/уже существует/);
  assert.throws(()=>projectPathDraft(state,'Parent/Child/Nested','work'),/двух названий/);
+});
+
+
+test('workspace search finds projects, areas and tasks by title or hierarchy',()=>{
+ const state=normalizeState({version:1,areas:[{id:'zone',name:'Дизайн'}],projects:[
+  {id:'root',name:'Редизайн',areaId:'zone'},{id:'child',name:'Панели',parentId:'root',areaId:'zone'}
+ ],tasks:[{id:'item',title:'Окно поиска',projectId:'child'}],plans:{}});
+ assert.deepEqual(workspaceSearchResults(state,'ДИЗАЙН').map(item=>item.id).sort(),['child','item','root','zone']);
+ assert.deepEqual(workspaceSearchResults(state,'окно панели').map(item=>item.id),['item']);
+ assert.equal(workspaceSearchResults(state,'панели')[0].kind,'project');
 });

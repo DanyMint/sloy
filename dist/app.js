@@ -1,3 +1,4 @@
+import {showWorkspaceSearch,workspaceSearchResults} from './workspace-search.js';
 import {initVimProjectTree} from './vim-project-tree.js';
 import {initVimNavigation,readVimPreference,saveVimPreference,vimHelpHTML,vimMenuKey,vimTaskTargets} from './vim-navigation.js';
 import {initTaskContextMenu,chooseTaskDestination} from './task-context-menu.js';
@@ -58,10 +59,8 @@ function navigatePage(next,id=''){vim.resetPrefix();vim.endRange();desktopTasks.
 const projectCatalog=()=>page==='projects'&&!entityId;
 function renderSidebar(){
  const treeBefore=vimTree.snapshot();
- const toolbar=vimEnabled?'<input class="field vim-tree-search" type="search" data-vim-tree-search aria-label="Поиск проектов и зон" placeholder="Найти проект или зону">':'';
- const tree=sidebarTreeHTML(state,{page,entityId,expanded:treeExpanded});$('#sidebar-tree').innerHTML=toolbar+tree;$('#zones-tree').innerHTML=toolbar+tree;
+ const tree=sidebarTreeHTML(state,{page,entityId,expanded:treeExpanded});$('#sidebar-tree').innerHTML=tree;$('#zones-tree').innerHTML=tree;
  for(const nav of [$('#sidebar-tree'),$('#zones-tree')])nav.tabIndex=-1;
- vimTree.refresh();
  vimTree.restore(treeBefore);
  document.querySelectorAll('#page-nav [data-page],.sidebar-system [data-page],#mobile-nav [data-page],#mobile-menu [data-page]').forEach(b=>{const active=b.dataset.page===page||!!b.closest('#mobile-nav')&&b.dataset.page==='zones'&&['areas','projects'].includes(page);b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
  mobileShell.sync(page);
@@ -163,7 +162,7 @@ function saveEntity(event){
    if(entity.parentId)treeExpanded['project:'+entity.parentId]=true;
    if(entity.areaId)treeExpanded['area:'+entity.areaId]=true;
    else treeExpanded['area:__inbox']=true;
-   if(saved)vimTreeModalOrigin={...saved,key:'project:'+entity.id,search:false};
+   if(saved)vimTreeModalOrigin={...saved,key:'project:'+entity.id};
   }
   closeModal();render();toast('Сохранено: '+entity.name);
  }catch(error){$('#entity-error').textContent=error.message;}
@@ -380,7 +379,7 @@ function showExport(){const sources=[...new Set(state.tasks.filter(t=>!t.archive
 function showHelp(){openModal('<h2>Намерение + живая реальность</h2><p class="modal-description">Journal: год, квартал, неделя и день.</p><div class="help-step"><b>1</b><div><strong>Один список задач</strong><p>Год — крупные проекты в зонах. Квартал — годовые проекты или их подпроекты. Неделя — конкретные действия для квартальных целей. День — задачи из плана этой недели. Статусы задач общие.</p></div></div><div class="help-step"><b>2</b><div><strong>Зафиксируйте план</strong><p>Выберите фокус или задачи кнопкой +. Фиксация сохраняет первоначальный выбор и формулировки. На странице дня отмечайте выполнение, привычки, самочувствие и сон.</p></div></div><div class="help-step"><b>3</b><div><strong>Работайте с живыми задачами</strong><p>Меняйте названия и отмечайте выполнение. План покажет изменения. В итог попадают выполнения с датой внутри периода; работа вне плана видна отдельно.</p></div></div><div class="help-step"><b>4</b><div><strong>Завершите период</strong><p>Планирование находится в начале страницы, статистика — в конце. На дне можно записать выводы. Экспорт Markdown сохраняет фокус и исходный план со ссылками на задачи.</p></div></div><div class="hint-box">Это ручной обмен файлами, без доступа к вашему хранилищу. Данные сохраняются в браузере на этом устройстве. Резервную копию можно скачать в формате JSON.</div><label class="form-label" for="vault-name">Имя хранилища Obsidian (для открытия задач)</label><input class="field" id="vault-name" value="'+esc(state.vault||'')+'" placeholder="Например: Мой мозг"><div class="form-note">После экспорта откройте задачу в редакторе: там появится ссылка «Открыть в Obsidian».</div><div class="modal-actions"><button class="primary-button" data-action="save-settings">Понятно</button></div>');}
 document.addEventListener('click',event=>{
   closeWeeklyMenus(event.target.closest('[data-weekly-menu],#task-filter-menu'));
-  const tree=event.target.closest('[data-tree-open]');if(tree){clearTimeout(treeClickTimer);if(event.detail===0||matchMedia('(max-width:680px)').matches){navigatePage(tree.dataset.treeOpen==='area'?'areas':'projects',tree.dataset.id);if(event.detail===0)vim.focusList();}else if(event.detail===1)treeClickTimer=setTimeout(()=>navigatePage(tree.dataset.treeOpen==='area'?'areas':'projects',tree.dataset.id),320);return;}
+  const tree=event.target.closest('[data-tree-open]');if(tree){clearTimeout(treeClickTimer);if(event.detail===0||matchMedia('(max-width:680px)').matches){navigatePage(tree.dataset.treeOpen==='area'?'areas':'projects',tree.dataset.id);if(event.detail===0)focusCollection();}else if(event.detail===1)treeClickTimer=setTimeout(()=>navigatePage(tree.dataset.treeOpen==='area'?'areas':'projects',tree.dataset.id),320);return;}
   const button=event.target.closest('[data-action]');if(!button||button.disabled)return;const action=button.dataset.action,id=button.dataset.id;
   if(action==='page'){if(button.dataset.page==='today')navigatePage('today');else navigatePage(button.dataset.page);}
   else if(action==='undo-task-move')undoChange();
@@ -427,8 +426,8 @@ document.addEventListener('click',event=>{
   else if(action==='task-view'){if(page!=='projects')return;scopeLayouts[entityId]=button.dataset.view==='kanban'?'kanban':'table';try{localStorage.setItem('kontur-project-layouts',JSON.stringify(scopeLayouts));}catch{}render();}
   else if(action==='configure-kanban'){kanbanDraft=clone(boardConfig(state,entityId));openModal(boardSettingsHTML(kanbanDraft));}
   else if(action.startsWith('kanban-column-')){if(!kanbanDraft)return;const i=Number(button.dataset.index),cols=kanbanDraft.columns;if(action==='kanban-column-add'&&cols.length<12)cols.push({id:newId('column'),title:'Новая колонка',status:'todo',color:'purple'});else if(action==='kanban-column-remove')cols.splice(i,1);else if(action==='kanban-column-up'&&i>0)[cols[i-1],cols[i]]=[cols[i],cols[i-1]];else if(action==='kanban-column-down'&&i<cols.length-1)[cols[i+1],cols[i]]=[cols[i],cols[i+1]];openModal(boardSettingsHTML(kanbanDraft));}
-  else if(action==='open-project'){navigatePage('projects',id);if(event.detail===0)vim.focusList();}
-  else if(action==='open-area'){navigatePage('areas',id);if(event.detail===0)vim.focusList();}
+  else if(action==='open-project'){navigatePage('projects',id);if(event.detail===0)focusCollection();}
+  else if(action==='open-area'){navigatePage('areas',id);if(event.detail===0)focusCollection();}
   else if(action==='new-project')showEntity('project','',{parentId:button.dataset.parent,areaId:button.dataset.area});
   else if(action==='edit-project')showEntity('project',id);
   else if(action==='complete-project'){const p=state.projects.find(p=>p.id===id);if(!p)return;openModal('<h2>Завершить проект?</h2><p class="modal-description">'+esc(p.name)+'</p><div class="hint-box">Вы подтверждаете, что цель достигнута. Задачи не будут автоматически отмечены выполненными. Проект и его подпроекты перестанут предлагаться в новых планах; повторения приостановятся. Проект можно открыть снова.</div><div class="modal-actions"><button class="secondary-button" data-action="close-modal">Отмена</button><button class="primary-button" data-action="confirm-complete-project" data-id="'+esc(id)+'">Завершить проект</button></div>');}
@@ -830,6 +829,30 @@ function taskMenuShortcut(command,context){
 const closeTaskMenu=initTaskContextMenu({describe:describeTaskMenu,execute:executeTaskMenu,restore:restoreTaskMenuFocus,
  shortcut:taskMenuShortcut,onOpen:()=>vim.resetPrefix()});
 
+function focusCollection(id){
+ if(vim.focusList(id)||!vimEnabled)return;
+ const heading=$('#collection-view h1');
+ if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}
+}
+
+function searchWorkspace(){
+ if(document.querySelector('main').inert)return false;
+ showWorkspaceSearch(openModal,closeModal,query=>workspaceSearchResults(state,query),result=>{
+  closeModal();
+  if(result.kind==='task'){
+   const task=state.tasks.find(item=>item.id===result.id);
+   if(!task||!isTaskActive(state,task))return;
+   navigatePage(task.projectId?'projects':'areas',task.projectId||task.areaId||'__inbox');
+   focusCollection(task.id);
+   openExistingTask(task.id,taskScreen(document.activeElement));
+  }else{
+   navigatePage(result.kind==='project'?'projects':'areas',result.id);
+   focusCollection();
+  }
+ });
+ return true;
+}
+
 function showVimHelp(){
  openModal(vimHelpHTML());
 }
@@ -890,7 +913,7 @@ const vimTree=initVimProjectTree({
 const vim=initVimNavigation({
  enabled:()=>vimEnabled,scope:()=>JSON.stringify([page,entityId]),
  selection:()=>desktopTasks.selection,setSelection:ids=>{desktopTasks.selection=ids;},
- run:runVimCommand,help:showVimHelp,hint:$('#vim-prefix-hint'),explorer:vimTree,
+ run:runVimCommand,help:showVimHelp,search:searchWorkspace,hint:$('#vim-prefix-hint'),explorer:vimTree,
  navigate:destination=>{
   if(destination==='week')navigate('week',today());
   else{navigatePage(destination);if(destination==='projects')vimTree.focus($('#zones-tree'));}

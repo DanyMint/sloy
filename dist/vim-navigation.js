@@ -13,7 +13,6 @@ const listCommands=[
  ['first','g g','Первая видимая задача'],
  ['last','G','Последняя видимая задача'],
  ['open','Enter','Открыть активную задачу'],
- ['search','/','Поиск в списке'],
  ['select','Space','Добавить или убрать активную задачу'],
  ['range','v','Начать или закончить выделение диапазона','KeyV'],
  ['add','a','Создать задачу','KeyA'],
@@ -52,8 +51,8 @@ export function vimHelpHTML(){
  return '<div class="vim-help"><h2>Команды Vim</h2><p>Команды используют физические клавиши. На русской раскладке клавиша точки открывает поиск, а с Shift — справку. В полях ввода работает выбранная раскладка.</p>'+
   '<p>Рамка отмечает активную строку, заливка — выделение. Отметьте задачи пробелом, нажмите m, выберите назначение и подтвердите. Ctrl+Z отменяет перенос.</p>'+
   '<div class="vim-help-grid">'+section('Список задач',listCommands)+'<div>'+
-  section('Везде',[...destinations,['explorer','Space e','Дерево проектов из Normal'],['help','?','Показать команды'],['escape','Esc','Закрыть верхний слой или вернуться в Normal'],['add','a','Создать задачу вне дерева']])+
-  section('Дерево проектов',[['move','j / k','Следующая или предыдущая строка'],['branch','h / l','Свернуть, раскрыть или перейти по ветви'],['edges','g g / G','Первая или последняя строка'],['open','Enter','Открыть проект или зону'],['search','/','Поиск проектов и зон'],['add','a','Создать проект или подпроект']])+'</div></div>'+
+  section('Везде',[...destinations,['search','/','Поиск проектов, зон и задач'],['explorer','Space e','Дерево проектов из Normal'],['help','?','Показать команды'],['escape','Esc','Закрыть верхний слой или вернуться в Normal'],['add','a','Создать задачу вне дерева']])+
+  section('Дерево проектов',[['move','j / k','Следующая или предыдущая строка'],['branch','h','Свернуть ветвь или перейти к родителю'],['edges','g g / G','Первая или последняя строка'],['open','l / Enter','Открыть проект или зону'],['add','a','Создать проект или подпроект']])+'</div></div>'+
   '<div class="modal-actions"><button type="button" class="primary-button" data-action="close-modal">Готово</button></div></div>';
 }
 
@@ -92,11 +91,10 @@ export function rangeSelection(ids,anchor,end,base){
  return new Set([...base,...ids.slice(Math.min(first,last),Math.max(first,last)+1)]);
 }
 
-export function initVimNavigation({enabled,scope,selection,setSelection,run,navigate,help,hint,explorer}){
- const activeByScope=new Map(),searchByScope=new Map(),settingsDrafts=new WeakMap();
+export function initVimNavigation({enabled,scope,selection,setSelection,run,navigate,help,search,hint,explorer}){
+ const activeByScope=new Map(),settingsDrafts=new WeakMap();
  let range=null,prefix='',timer;
  const list=()=>enabled()?document.querySelector('#collection-view:not([hidden]) [data-vim-list]'):null;
- const searchInput=()=>list()?.parentElement.querySelector('[data-vim-search]');
  const rows=()=>[...list()?.querySelectorAll(rowsSelector)||[]].filter(visible);
  const resetPrefix=()=>{
   prefix='';clearTimeout(timer);hint.hidden=true;
@@ -119,30 +117,15 @@ export function initVimNavigation({enabled,scope,selection,setSelection,run,navi
  function snapshot(){
   const container=list(),target=document.activeElement;
   if(!container)return null;
-  const row=target?.closest(rowsSelector),search=target===searchInput();
-  return {scope:scope(),active:activeByScope.get(scope()),ids:rows().map(item=>item.dataset.taskId),owned:search||container.contains(target),
-   search,rowId:row?.dataset.taskId,
-   caret:search?[target.selectionStart,target.selectionEnd,target.selectionDirection]:null,
+  const row=target?.closest(rowsSelector);
+  return {scope:scope(),active:activeByScope.get(scope()),ids:rows().map(item=>item.dataset.taskId),owned:container.contains(target),
+   rowId:row?.dataset.taskId,
    control:row&&row!==target?[...row.querySelectorAll(interactive)].indexOf(target):-1,
    focused:target};
- }
- function filter(){
-  const container=list(),input=searchInput();
-  if(!input)return;
-  const value=searchByScope.get(scope())||'';
-  if(input.value!==value)input.value=value;
-  const terms=value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
-  for(const row of container.querySelectorAll(rowsSelector)){
-   const title=row.querySelector('.task-title').textContent.toLocaleLowerCase();
-   row.hidden=!terms.every(term=>title.includes(term));
-  }
-  const empty=container.querySelector('[data-vim-empty]');
-  empty.hidden=!terms.length||rows().length>0;
  }
  function refresh(before,{restore=false}={}){
   const container=list();
   if(!container){range=null;return;}
-  filter();
   const shown=rows(),ids=shown.map(row=>row.dataset.taskId),sameScope=before?.scope===scope();
   if(range&&(range.scope!==scope()||!ids.includes(range.anchor)))range=null;
   const id=recoverActiveId(sameScope?before.ids:[],ids,sameScope?before.active??activeByScope.get(scope()):activeByScope.get(scope()));
@@ -150,12 +133,7 @@ export function initVimNavigation({enabled,scope,selection,setSelection,run,navi
   const focused=document.activeElement;
   const lostFocus=focused===document.body||focused===container||!visible(focused);
   const takeFocus=sameScope&&before.owned&&(lostFocus||restore&&focused===before.focused);
-  activate(row,{focus:takeFocus&&!before.search,scroll:takeFocus&&!before.search});
-  if(takeFocus&&before.search){
-   const input=searchInput();
-   input.focus({preventScroll:true});
-   input.setSelectionRange(...before.caret);
-  }
+  activate(row,{focus:takeFocus,scroll:takeFocus});
   if(takeFocus&&!restore&&id===before.rowId&&before.control>=0){
    const control=row?.querySelectorAll(interactive)[before.control];
    if(visible(control)&&!control.disabled)control.focus({preventScroll:true});
@@ -192,9 +170,11 @@ export function initVimNavigation({enabled,scope,selection,setSelection,run,navi
   }
   return true;
  }
- function focusList(){
+ function focusList(id=activeByScope.get(scope())){
+  if(!list())return false;
   const shown=rows();
-  activate(shown.find(row=>row.dataset.taskId===activeByScope.get(scope()))||shown[0],{focus:true,scroll:true});
+  activate(shown.find(row=>row.dataset.taskId===id)||shown[0],{focus:true,scroll:true});
+  return true;
  }
  document.addEventListener('focusin',event=>{
   resetPrefix();
@@ -214,12 +194,6 @@ export function initVimNavigation({enabled,scope,selection,setSelection,run,navi
   if(event.target.open&&event.target.matches('dialog,[data-weekly-menu],#task-filter-menu'))resetPrefix();
   if(event.target.matches('details')&&list()?.contains(event.target))refresh(null);
  },true);
- document.addEventListener('input',event=>{
-  if(!enabled()||!event.target.matches('[data-vim-search]'))return;
-  const before=snapshot();
-  searchByScope.set(scope(),event.target.value);
-  refresh(before);
- });
  const normal=()=>{
   const main=document.querySelector('main');
   main.tabIndex=-1;main.focus({preventScroll:true});
@@ -238,11 +212,8 @@ export function initVimNavigation({enabled,scope,selection,setSelection,run,navi
   if(target.closest(editable)||target.isContentEditable){
    resetPrefix();
    if(command!=='escape')return;
-   if(target===searchInput())focusList();
-   else if(!explorer.exitSearch(target)){
-    if(settingsDrafts.has(target))target.value=settingsDrafts.get(target);
-    normal();
-   }
+   if(settingsDrafts.has(target))target.value=settingsDrafts.get(target);
+   normal();
    event.preventDefault();
    return;
   }
@@ -271,14 +242,12 @@ export function initVimNavigation({enabled,scope,selection,setSelection,run,navi
    range=null;navigate(command);
   }else if(command==='help'){
    help();
+  }else if(command==='search'){
+   if(!search())return;
   }else if(inTree){
    if(!explorer.run(command,target))return;
   }else if(command==='add'){
    if(!run(command,row))return;
-  }else if(command==='search'){
-   const input=searchInput()||document.querySelector('#planner-view:not([hidden]) #task-search');
-   if(!visible(input))return;
-   input.focus();
   }else if(container&&movement.has(command)){
    if(!move(command))return;
   }else if(inList&&command==='range'&&row){

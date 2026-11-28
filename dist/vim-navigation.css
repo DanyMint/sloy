@@ -4,9 +4,6 @@
 .vim-list-tools {
  margin:12px 0;color:var(--muted);
 }
-.vim-list-tools .field {
- width:min(100%,320px);
-}
 [data-vim-count] {
  min-width:7em;font-variant-numeric:tabular-nums;
 }
@@ -66,24 +63,38 @@
 @media(max-width:560px) {
  .vim-help-grid {grid-template-columns:1fr;gap:0;}
 }
-.vim-tree-search {
- margin:6px 0 10px;
-}
-#zones-tree .vim-tree-search {
- max-width:320px;
-}
-.vim-tree-filtered .space-tree-item ul[hidden] {
- display:block;
-}
-.space-tree-item[hidden] {
- display:none;
-}
 .space-tree-title:focus-visible {
  outline:2px solid var(--focus);outline-offset:-2px;border-radius:6px;
 }
-@media(min-width:681px) {
- html[data-sidebar="compact"] #sidebar .vim-tree-search {display:none;}
-}
 main[tabindex="-1"]:focus {
  outline:none;
+}
+.workspace-search h2 {
+ margin:0 0 14px;
+}
+.workspace-search .field {
+ width:100%;
+}
+#workspace-search-results {
+ display:grid;gap:4px;max-height:min(50vh,380px);overflow:auto;margin:14px 0;
+}
+#workspace-search-results [role="option"] {
+ display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;
+ padding:9px 12px;border:1px solid transparent;border-radius:8px;cursor:pointer;
+}
+#workspace-search-results [role="option"]:hover,
+#workspace-search-results [aria-selected="true"] {
+ border-color:var(--accent-border);background:var(--accent-soft);
+}
+#workspace-search-results span,#workspace-search-results small,.workspace-search-keys {
+ color:var(--muted);font-size:12px;
+}
+#workspace-search-results small {
+ grid-column:1/-1;
+}
+#workspace-search-results small:empty {
+ display:none;
+}
+.workspace-search-keys {
+ display:flex;flex-wrap:wrap;gap:12px;border-top:1px solid var(--line);padding-top:12px;
 }
